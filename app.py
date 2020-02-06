@@ -52,4 +52,5 @@ def date_range(window=-1, start=date_start, end=date_now):
             start = end - timedelta(days=window)
     return start, end
 
-print("Hello World!")
+def test():
+    print("Test")
