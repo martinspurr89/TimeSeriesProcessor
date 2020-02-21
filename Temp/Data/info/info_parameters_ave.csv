@@ -1,0 +1,28 @@
+dataset,parameter_ave,parameter_lab,plot,line,ribbon,bar,point,colour,fill,shape,line_type,bar_order,show_in_legend,selected_chart_0,selected_chart_1,selected_chart_2,selected_chart_3
+Sensor,BES_1__V_ave,BES 1,BES_V,True,True,False,False,0,0,,solid,,True,0,0,0,1
+Sensor,BES_2__V_ave,BES 2,BES_V,True,True,False,False,3,3,,solid,,True,0,0,0,1
+Sensor,BES_3__V_ave,BES 3,BES_V,True,True,False,False,5,5,,solid,,True,0,0,0,1
+Sensor,BES_4__V_ave,BES 4,BES_V,True,True,False,False,6,6,,solid,,True,0,0,0,1
+Sensor,BES_1__C_ave,BES 1,BES_C,True,True,False,False,0,0,,solid,,True,0,0,0,1
+Sensor,BES_2__C_ave,BES 2,BES_C,True,True,False,False,3,3,,solid,,True,0,0,0,1
+Sensor,BES_3__C_ave,BES 3,BES_C,True,True,False,False,5,5,,solid,,True,0,0,0,1
+Sensor,BES_4__C_ave,BES 4,BES_C,True,True,False,False,6,6,,solid,,True,0,0,0,1
+Sensor,BES_SUM__V_ave,∑ [BESs],BES_V,True,True,False,False,29,29,,solid,,True,0,0,0,1
+Sensor,BES_SUM__C_ave,∑ [BESs],BES_C,True,True,False,False,29,29,,solid,,True,0,0,0,1
+Sensor,REXT_1_ave,BES 1 R<sub>Ext</sub>,REXT,True,True,False,False,0,0,,solid,,True,0,0,0,1
+Sensor,REXT_2_ave,BES 2 R<sub>Ext</sub>,REXT,True,True,False,False,3,3,,solid,,True,0,0,0,1
+Sensor,REXT_3_ave,BES 3 R<sub>Ext</sub>,REXT,True,True,False,False,5,5,,solid,,True,0,0,0,1
+Sensor,REXT_4_ave,BES 4 R<sub>Ext</sub>,REXT,True,True,False,False,6,6,,solid,,True,0,0,0,1
+Sensor,OCP_1_ave,BES 1,OCP,True,True,False,False,0,0,,solid,4.0,True,0,0,0,0
+Sensor,OCP_2_ave,BES 2,OCP,True,True,False,False,3,3,,solid,3.0,True,0,0,0,0
+Sensor,OCP_3_ave,BES 3,OCP,True,True,False,False,5,5,,solid,2.0,True,0,0,0,0
+Sensor,OCP_4_ave,BES 4,OCP,True,True,False,False,6,6,,solid,1.0,True,0,0,0,0
+Sensor,TEMP_BES_ave,Heated Water Temp,TEMP,True,True,False,False,3,3,,solid,,True,0,0,0,1
+Sensor,TEMP_MAT_ave,Heated Mats Temp,TEMP_PROCESS,True,True,False,False,2,2,,solid,,True,0,0,0,1
+Sensor,TEMP_HOSE_ave,Heated Hoses Temp,TEMP_PROCESS,True,True,False,False,3,3,,solid,,True,0,0,0,1
+Sensor,PRESSURE_BES_ave,BES Pressure,PRESSURE,True,True,False,False,4,4,,solid,,True,0,0,0,1
+Sensor,SENSOR_HOSE_STATUS_ave,Heated Hoses Status,TEMP_EVENT,True,True,False,False,3,3,,solid,1.0,True,0,0,0,0
+Skid,Inlet_Temp_ave,Pipe Temp (BE:WISE),TEMP,True,True,False,False,0,0,,longdash,,True,1,1,1,1
+SampLog,BOD5_ave,Feed BOD₅,BOD,True,False,False,True,4,14,21.0,solid,,True,1,1,1,1
+SampLog,tCOD_ave,Feed tCOD,COD,True,False,False,True,1,11,21.0,solid,,True,1,1,1,1
+SampLog,sCOD_ave,Feed sCOD,COD,True,False,False,True,4,14,21.0,solid,,True,1,1,1,1
