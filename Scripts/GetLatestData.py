@@ -351,7 +351,15 @@ def file_import_handler(dataset, dataset_f_info, filename, dataset_supp_data, f_
 
         #Choose parameters included in parameters sheet
         selected_pars = list(info['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
-        day_df = day_df[['DateTime'] + selected_pars]
+        day_df = day_df[['DateTime'] + selected_pars].copy() #Copy prevents hidden chain indexing later
+
+        #Make floats
+        for col in selected_pars:
+            try:
+                day_df.loc[:,col] = day_df.loc[:,col].astype(float)
+            except:
+                pass
+        
         # Add blank row between files - to be implemented
         # if len(day_df) > 0:
         #    if not pd.isna(dataset_f_info['Add_blank_rows'][dataset]):
