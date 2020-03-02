@@ -444,6 +444,8 @@ plot_dict = dict(zip(info['parameters']['parameter'], info['parameters']['plot']
 plot_dict2 = dict(zip(info['parameters_ave']['parameter_ave'], info['parameters_ave']['plot']))
 plot_dict.update(plot_dict2)
 
+point_pars = info['parameters'].query('point == True')['parameter'].to_list() + info['parameters_ave'].query('point == True')['parameter_ave'].to_list()
+
 chart_dfs_mlt = []
 for chart in tqdm(charts, desc="Melting data"):
     if info['charts'].loc[chart, 'chart_status'] == 'ON':
@@ -475,6 +477,9 @@ for chart in tqdm(charts, desc="Melting data"):
         # Assign plots
         df3.loc[:, 'Plot'] = df3['Parameter'].map(plot_dict)
 
+        df3.drop(
+            df3[df3['Parameter'].isin(point_pars) & np.isnan(df3['Value'])].index, inplace=True)
+
         chart_dfs_mlt.append(df3)
     else:
         chart_dfs_mlt.append(pd.DataFrame())
@@ -500,7 +505,7 @@ for chart in tqdm(charts, desc="Creating plot dictionaries"):
         par_info_all['colour'].fillna(info['colours'].query("theme == 'dark'")['rgba_str'].to_list()[0], inplace=True)
         par_info_all['fill'].fillna(info['colours'].query("theme == 'dark'")['rgba_str'].to_list()[0], inplace=True)
         par_info_all['shape'].fillna(1, inplace=True)
-        par_info_all['line_type'].fillna("solid", inplace=True)
+        par_info_all['dash'].fillna("solid", inplace=True)
         par_info_all['show_in_legend'].fillna(True, inplace=True)
 
         par_info_all.loc[par_info_all['ribbon'] == True, 'fill'] = par_info_all.loc[par_info_all['ribbon'] == True, 'fill'].str.replace(",1\)", ",0.25)")
@@ -538,8 +543,8 @@ for data_type in data_types:
     os.mkdir(data_folder + "/" + data_type)
 
 for A in info:
-    info[A].to_csv(data_folder + "/info/info_" + str(A) + ".csv", encoding='utf-8')
+    info[A].to_csv(data_folder + "/info/info_" + str(A).zfill(2) + ".csv", encoding='utf-8')
 for i, A in enumerate(chart_dfs_mlt):
-    A.to_csv(data_folder + "/chart_dfs_mlt/chart_dfs_mlt_" + str(i) + ".csv", encoding='utf-8', index=False)
+    A.to_csv(data_folder + "/chart_dfs_mlt/chart_dfs_mlt_" + str(i).zfill(2) + ".csv", encoding='utf-8', index=False)
 for i, A in enumerate(plot_pars):
-    A.to_csv(data_folder + "/plot_pars/plot_pars_" + str(i) + ".csv", encoding='utf-8')
+    A.to_csv(data_folder + "/plot_pars/plot_pars_" + str(i).zfill(2) + ".csv", encoding='utf-8')
