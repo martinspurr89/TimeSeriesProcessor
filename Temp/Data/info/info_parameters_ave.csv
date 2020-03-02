@@ -1,4 +1,4 @@
-dataset,parameter_ave,parameter_lab,plot,line,ribbon,bar,point,colour,fill,shape,line_type,bar_order,show_in_legend,selected_chart_0,selected_chart_1,selected_chart_2,selected_chart_3
+dataset,parameter_ave,parameter_lab,plot,line,ribbon,bar,point,colour,fill,shape,dash,bar_order,show_in_legend,selected_chart_0,selected_chart_1,selected_chart_2,selected_chart_3
 Sensor,BES_1__V_ave,BES 1,BES_V,True,True,False,False,0,0,,solid,,True,0,0,0,1
 Sensor,BES_2__V_ave,BES 2,BES_V,True,True,False,False,3,3,,solid,,True,0,0,0,1
 Sensor,BES_3__V_ave,BES 3,BES_V,True,True,False,False,5,5,,solid,,True,0,0,0,1
@@ -23,6 +23,6 @@ Sensor,TEMP_HOSE_ave,Heated Hoses Temp,TEMP_PROCESS,True,True,False,False,3,3,,s
 Sensor,PRESSURE_BES_ave,BES Pressure,PRESSURE,True,True,False,False,4,4,,solid,,True,0,0,0,1
 Sensor,SENSOR_HOSE_STATUS_ave,Heated Hoses Status,TEMP_EVENT,True,True,False,False,3,3,,solid,1.0,True,0,0,0,0
 Skid,Inlet_Temp_ave,Pipe Temp (BE:WISE),TEMP,True,True,False,False,0,0,,longdash,,True,1,1,1,1
-SampLog,BOD5_ave,Feed BOD₅,BOD,True,False,False,True,4,14,21.0,solid,,True,1,1,1,1
-SampLog,tCOD_ave,Feed tCOD,COD,True,False,False,True,1,11,21.0,solid,,True,1,1,1,1
-SampLog,sCOD_ave,Feed sCOD,COD,True,False,False,True,4,14,21.0,solid,,True,1,1,1,1
+SampLog,BOD5_ave,Feed BOD₅,BOD,True,False,False,True,4,14,circle,solid,,True,1,1,1,1
+SampLog,tCOD_ave,Feed tCOD,COD,True,False,False,True,4,14,circle,solid,,True,1,1,1,1
+SampLog,sCOD_ave,Feed sCOD,COD,True,False,False,True,1,11,circle,solid,,True,1,1,1,1

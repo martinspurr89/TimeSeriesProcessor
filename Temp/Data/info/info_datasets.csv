@@ -1,8 +1,7 @@
 dataset,folder,selection,melt,data_folder_path,supp_data_filepath,file_pat,skiprows,Slim,Del_unit_rows,Add_blank_rows
 UO,1,UO.wide,UO.wide,C:/Users/nms198/Google Drive/ToOLTuBES/LAB/Data Files/UO_real-time_data/,C:/Users/nms198/Google Drive/ToOLTuBES/LAB/Data Files/UO_real-time_data/LogTimes.txt,.csv,0,1.0,,1.0
 NWL,1,NWL,NWL,C:/Users/nms198/Google Drive/ToOLTuBES/LAB/Data Files/NWL_audit_data/Data/,,.xlsx,2,,1.0,
-Skid,1,Skid,Skid.ave,C:/Users/nms198/Google Drive/BEWISE_shared/Skid_Logging/Data_PreApr18/,,.CSV,2,,,1.0
-Skid,2,Skid,Skid.ave,C:/Users/nms198/Google Drive/BEWISE_shared/Skid_Logging/Data_Skid_1+2/,,.CSV,3,,,1.0
+Skid,1,Skid,Skid.ave,C:/Users/nms198/Google Drive/BEWISE_shared/Skid_Logging/Data_Skid_1+2/,,.CSV,3,,,1.0
 SampLog,1,SampLog.wide,SampLog.wide.ave,C:/Users/nms198/Google Drive/BEWISE_shared/Sample_Logs/,,.csv,0,1.0,,
 Sensor,1,SENSOR,SENSOR,C:/Users/nms198/Google Drive/ToOLTuBESv2/LAB/ToOLTuBES sensor/Data/,,\d\d_\d\d_\d\d\d\d\.csv,0,,,
 Events,1,EV.wide,EV.ave,C:/Users/nms198/Google Drive/ToOLTuBESv2/LAB/ToOLTuBES sensor/Events/,C:/Users/nms198/Google Drive/ToOLTuBESv2/LAB/ToOLTuBES sensor/Events/Events_info.txt,.csv,0,,,
