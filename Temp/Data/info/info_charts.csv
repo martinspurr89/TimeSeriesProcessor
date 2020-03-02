@@ -1,6 +1,0 @@
-order,chart,chart_status,chart_res,chart_range_window,chart_range_start,chart_range_end,chart_label
-0,high,ON,0,"3 days, 0:00:00",2020-02-28 09:34:20.318543+00:00,2020-03-02 09:34:20.318543+00:00,High Resolution
-1,med,ON,5,"14 days, 0:00:00",2020-02-17 09:34:20.318543+00:00,2020-03-02 09:34:20.318543+00:00,Medium Resolution
-2,low,ON,120,"271 days, 20:31:03.318543",2019-06-04 13:03:17+00:00,2020-03-02 09:34:20.318543+00:00,Low Resolution
-3,low_ave,ON,120,"271 days, 20:31:03.318543",2019-06-04 13:03:17+00:00,2020-03-02 09:34:20.318543+00:00,Low Resolution (average)
-4,custom1,OFF,0,"1 day, 0:00:00",2019-06-04 13:03:17+00:00,2019-06-05 13:03:17+00:00,Custom Chart
