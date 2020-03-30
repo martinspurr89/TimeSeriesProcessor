@@ -434,6 +434,8 @@ for chart in tqdm(charts, desc="Assign data to chart DFs"):
         else:
             df = df.reset_index(drop=True)
         chart_dfs.append(df)
+        if len(df) == 0:
+            info['charts']['chart_status'][chart] = 'OFF'
     else:
         chart_dfs.append("")
 
