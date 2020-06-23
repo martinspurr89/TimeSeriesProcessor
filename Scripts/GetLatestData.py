@@ -149,6 +149,49 @@ custom_preimport_functions = {'UO': get_UO_support_data,
 
 
 # ### Custom Imported Data Functions
+def mod_imported_Sensor_py_data(day_df, filename, dataset_supp_data, dataset_f_info, dataset="Sensor"):
+    day_df['DateTime'] = day_df['Date'] + " " + day_df['Time']
+    day_df['DateTime'] = pd.to_datetime(day_df['DateTime'], format='%d/%m/%Y %H:%M:%S')
+    day_df['DateTime'] = day_df['DateTime'].dt.tz_localize('UTC')
+
+    # Make on/off events integer binary numbers 1/0
+    # on_events = ["^ON$", "^RUNNING$", "^CW$", "^AUTO$"]
+    # off_events = ["^OFF$", "^STOP$", "^CCW$", "^MANUAL$"]
+
+    # all_rgx = re.compile("|".join(on_events + off_events))
+    # on_rgx = re.compile("|".join(on_events))
+    # off_rgx = re.compile("|".join(off_events))
+
+    # Sensor_events = {'ON': 1,
+    #                 'RUNNING': 1,
+    #                 'CW': 1,
+    #                 'AUTO': 1,
+    #                 'OFF': 0,
+    #                 'STOP': 0,
+    #                 'CCW': 0,
+    #                 'MANUAL': 0}
+
+    # string_cols = (day_df.applymap(type) == str).all(0).values
+    # for col in day_df.iloc[:, string_cols]:
+    #    if day_df[col].str.contains(all_rgx).any():
+    #        day_df[col] = day_df[col].replace(on_rgx, '1', regex=True)
+    #        day_df[col] = day_df[col].replace(off_rgx, '0', regex=True)
+    #        day_df[col] = day_df[col].astype(int)
+    # for col in day_df.iloc[:, string_cols]:
+    # if day_df.iloc[:, string_cols].str.contains(all_rgx).any():
+    # day_df[[i for i in list(day_df.columns) if i not in ['DateTime', 'Date', 'Time']]] = \
+    # day_df[[i for i in list(day_df.columns) if i not in ['DateTime', 'Date', 'Time']]].replace(Sensor_events).apply(pd.to_numeric)
+    # day_df.iloc[:, string_cols] = day_df.astype(int)
+
+    # Current density
+    day_df.iloc[:, day_df.columns.str.contains("__C")] = day_df.iloc[:, day_df.columns.str.contains("__C")] / (
+            math.pi * 0.6 ** 2 * 10)
+    # Sum Current density
+    day_df.iloc[:, day_df.columns.str.contains("SUM__C")] = day_df.iloc[:, day_df.columns.str.contains("SUM__C")] / 4
+
+    return day_df
+
+# ### Custom Imported Data Functions
 def mod_imported_Sensor_data(day_df, filename, dataset_supp_data, dataset_f_info, dataset="Sensor"):
     day_df['DateTime'] = day_df['Date'] + " " + day_df['Time']
     day_df['DateTime'] = pd.to_datetime(day_df['DateTime'], format='%d/%m/%Y %H:%M:%S')
@@ -190,10 +233,9 @@ def mod_imported_Sensor_data(day_df, filename, dataset_supp_data, dataset_f_info
     day_df.iloc[:, day_df.columns.str.contains("SUM__C")] = day_df.iloc[:, day_df.columns.str.contains("SUM__C")] / 4
 
     # Sensible tilt (up = positive)
-    day_df['SENSOR_TILT'] = -day_df['SENSOR_TILT']
+    day_df['SENSOR_TILT_LV'] = -day_df['SENSOR_TILT_LV']
 
     return day_df
-
 
 def mod_imported_Skid_data(day_df, filename, dataset_supp_data, dataset_f_info, dataset="Skid"):
     day_df = day_df.rename(columns={"TIME": "DateTime"})
@@ -255,7 +297,8 @@ def mod_imported_UO_data(day_df, filename, dataset_supp_data, dataset_f_info, da
     return day_df_wide
 
 
-custom_import_functions = {'Sensor': mod_imported_Sensor_data,
+custom_import_functions = {'Sensor_py': mod_imported_Sensor_py_data,
+                           'LV_Sens': mod_imported_Sensor_data,
                            'Skid': mod_imported_Skid_data,
                            'SampLog': mod_imported_SampLog_data,
                            'NWL': mod_imported_NWL_data,
@@ -291,12 +334,15 @@ def import_data(dataset):
                         dataset_all_days.append(day_df)
 
     # Create one dataframe from all days data
-    dataset_all_data = pd.concat(dataset_all_days, axis=0, ignore_index=True)
-    dataset_all_data.sort_values(by=['DateTime'], inplace=True)
-    dataset_all_data = dataset_all_data.reset_index(drop=True)
+    if len(dataset_all_days) > 0:
+        dataset_all_data = pd.concat(dataset_all_days, axis=0, ignore_index=True)
+        dataset_all_data.sort_values(by=['DateTime'], inplace=True)
+        dataset_all_data = dataset_all_data.reset_index(drop=True)
 
-    dataset_all_data = dataset_all_data[dataset_all_data['DateTime'] >= min(info['charts']['chart_range_start'])]
-    dataset_all_data = dataset_all_data[dataset_all_data['DateTime'] <= max(info['charts']['chart_range_end'])]
+        dataset_all_data = dataset_all_data[dataset_all_data['DateTime'] >= min(info['charts']['chart_range_start'])]
+        dataset_all_data = dataset_all_data[dataset_all_data['DateTime'] <= max(info['charts']['chart_range_end'])]
+    else:
+        dataset_all_data = pd.DataFrame()
 
     return dataset_all_data
 
@@ -415,6 +461,7 @@ del ave_col, col, ave_cols, cols
 ave_pars = list(info['parameters_ave'][selected_ave]['parameter_ave'].values)
 err_pars = [ave_par + "_err" for ave_par in ave_pars]
 selected_pars = list(info['parameters'][selected]['parameter'].values) + ave_pars + err_pars
+selected_pars = [x for x in selected_pars if x in all_data.columns]
 
 del selected, selected_ave, ave_pars, err_pars
 
