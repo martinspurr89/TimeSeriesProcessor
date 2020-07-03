@@ -10,6 +10,7 @@
 		"python.condaPath": "C:/Martin/Anaconda3_2020_02/Scripts/conda.exe",
 		"configurations": [
 
+
 			{
 				"name": "Python: Current File",
 				"type": "python",
@@ -19,10 +20,30 @@
 				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe"
 			},
 			{
+				"name": "Update",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe",
+				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Rod_BES_BEWISE", "--update"]
+			},
+			{
+				"name": "No_Update",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe",
+				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Rod_BES_BEWISE"]
+			},
+			{
 				"name": "Debug Tests",
 				"type": "python",
 				"request": "test",
-				"console": "integratedTerminal"
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe"
+
 			}
 		]
 	}
