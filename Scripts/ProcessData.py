@@ -16,6 +16,11 @@ import plotly.graph_objects as go
 import plotly.offline.offline
 import math
 import humanize
+import copy
+from PIL import Image
+import warnings
+from PyPDF2 import PdfFileMerger, PdfFileReader, PdfFileWriter
+import dash_core_components as dcc
 
 from config import *
 
@@ -118,6 +123,7 @@ def setUTCDatetime(date_str, old_tz, dt_format = "%d/%m/%Y %H:%M:%S"):
         return datetime_set_utc
 
 def processSetup(df):
+    global config
     config['project'] = df.loc['project', 'value']
     config['refresh_hours']  = df.loc['refresh_hours', 'value']
     
@@ -148,6 +154,7 @@ def dateRange(window=-1, start=config['date_start'], end=config['date_end']):
     return start, end
 
 def processCharts(df):
+    global config
     for chart, row in df.iterrows():
         chart_range = dateRange(window=row['chart_range_window'],
                                 start=setUTCDatetime(str(row['chart_range_start']), "UTC", "%Y-%m-%d %H:%M:%S"),
@@ -160,6 +167,7 @@ def processCharts(df):
     return df
 
 def createParPlotDict():
+    global config
     pars = config['info']['parameters']['parameter'].to_list() + config['info']['parameters_ave']['parameter_ave'].to_list()
     plots = config['info']['parameters']['plot'].to_list() + config['info']['parameters_ave']['plot'].to_list()
     config['par_plot_dict'] = dict(zip(pars, plots))
@@ -176,6 +184,7 @@ def processColours(df):
     return df
 
 def openinfoFile():
+    global config
     info_fname = "info.xlsx"
     config['info'] = pd.read_excel(io_dir / info_fname, sheet_name=None, index_col=0)
     config['info']['setup'] = processSetup(config['info']['setup'])
@@ -185,6 +194,7 @@ def openinfoFile():
 
 # Data import functions
 def selectDatasets():
+    global config
     selected_cols = []
     for chart in config['charts']:
         selected_cols.append("selected_chart_" + str(chart))
@@ -199,6 +209,7 @@ def selectDatasets():
     config['selected_datasets'] = list(selected_pars_all_inc[selected_pars_all_inc].index.unique().values)
 
 def readFile(dataset, folder, filename):
+    global config
     file_pat = config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
     del_rows = config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['Del_unit_rows'][dataset]
     
@@ -274,6 +285,7 @@ def combineSortData(df_dict):
     
 
 def importData(dataset):
+    global config
     num_folders = len(config['info']['datasets'].query('dataset == "' + dataset + '"')) + 1
     folder_data_list = {}
     if dataset not in config['files_imported']:
@@ -289,8 +301,6 @@ def importData(dataset):
     if (not any(df is None for df in folder_data_list)) & (len(folder_data_list) > 0):
         df_dataset = combineSortData(folder_data_list)
         return df_dataset
-
-    
 
 def importDatasets():
     selectDatasets()
@@ -345,7 +355,7 @@ def createChartDFs(chart):
             config['all_data']['DateTime'] <= config['info']['charts'].loc[chart, 'chart_range_end'])
     df = config['all_data'].loc[mask]
     if config['info']['charts'].loc[chart, 'chart_res'] != 0:
-        df = df.resample("".join([str(info['charts'].loc[chart, 'chart_res']), 'T']), on='DateTime').mean()
+        df = df.resample("".join([str(config['info']['charts'].loc[chart, 'chart_res']), 'T']), on='DateTime').mean()
         df = df.reset_index()
     else:
         df = df.reset_index(drop=True)
@@ -589,7 +599,7 @@ def createOfflineCharts(chart):
         p = p + 1
     return(div_chart_fig)
 
-def export_html(chart):
+def exportHTML(chart):
     #Build start and end strings
     html_string_start = '''
     <html>
@@ -624,37 +634,52 @@ def export_html(chart):
 
     #write finished html
     html_string + html_string_end
-    html_filename = str(chart) + "_" + config['info']['charts'].loc[chart, 'chart'] + ".html"
+    html_filename = str(chart) + "_" + config['charts'][chart] + ".html"
     checkFolderExists(io_dir / "Output")
     hreport = open(io_dir / "Output" / html_filename,'w')
     hreport.write(html_string)
     hreport.close()
 
-def export_png(chart):
-    #Export PNGs
-    deleteFolderContents(io_dir / "Temp/PNGs")
+def createTempChartDir(chart, otype):
+    temp_path = io_dir / "Temp" / (otype + "s")
+    deleteFolderContents(temp_path)
+    odir = temp_path /  (str(chart) + "_" + config['charts'][chart])
+    odir.mkdir(parents=True, exist_ok=True)
+    return(odir)
 
-    png_folder = str(chart) + "_" + info['charts'].loc[chart, 'chart']
-    png_dir = io_dir / "Temp/PNGs/" /  png_folder
-    png_dir.mkdir(parents=True, exist_ok=True)
-
-    divisor = len(chart_figs[chart])-1 + info['charts']['last_fig_x'][chart]
-
+def exportImage(chart, otype):
+    image_dir = createTempChartDir(chart, otype.upper())
+    divisor = len(config['chart_figs'][chart])-1 + config['info']['charts']['last_fig_x'][chart]
+    scaler = {'png': config['info']['charts']['dpi'][chart]/96,
+              'pdf': 1}
+    #Export individual images
     p = 0
-    #Export individual pngs
-    for plot in chart_figs[chart]:
-        height = info['charts']['png_height'][chart]/divisor
-        if p == len(chart_figs[chart])-1: #if the last chart
-            height = height * info['charts']['last_fig_x'][chart]
+    for plot in config['chart_figs'][chart]:
+        height = config['info']['charts'][otype + '_height'][chart]/divisor
+        if p == len(config['chart_figs'][chart])-1: #if the last chart
+            height = height * config['info']['charts']['last_fig_x'][chart]
         
-        chart_to_export = copy.copy(chart_figs[chart][plot])
-        chart_to_export.update_layout(width=info['charts']['png_width'][chart],
+        chart_to_export = copy.copy(config['chart_figs'][chart][plot])
+        chart_to_export.update_layout(width=config['info']['charts'][otype + '_width'][chart],
                                             height=height)
-        chart_to_export.write_image(png_dir + str(p).zfill(2) + "_" + plot + ".png",
-                                            scale=info['charts']['dpi'][chart]/96)
+        chart_to_export.write_image(str(image_dir / (str(p).zfill(2) + "_" + plot + "." + otype)),
+                                            scale=scaler)
         p = p + 1
 
-    images = [Image.open(png_dir + x) for x in os.listdir(png_dir)]
+    #Combine individual images and output to file
+    if otype == 'png':
+        combinePNG(image_dir, chart)
+    elif otype == 'pdf':
+        combinePDF(image_dir, chart)
+    
+    #Delete temp images
+    try:
+        shutil.rmtree(image_dir)
+    except OSError as e:
+        print ("Error: %s - %s." % (e.filename, e.strerror))
+
+def combinePNG(png_dir, chart):
+    images = [Image.open(png_dir / x) for x in os.listdir(png_dir)]
     widths, heights = zip(*(i.size for i in images))
 
     max_width = max(widths)
@@ -667,18 +692,72 @@ def export_png(chart):
         new_im.paste(im, (0,y_offset))
         y_offset += im.size[1]
 
-    new_im.save("Output/" + str(chart) + "_" + info['charts'].loc[chart, 'chart'] + ".png")
+    png_filename = str(chart) + "_" + config['charts'][chart] + ".png"
+    new_im.save(io_dir / "Output" /  png_filename)
 
-    #Delete temp pngs
-    try:
-        shutil.rmtree(png_dir)
-    except OSError as e:
-        print ("Error: %s - %s." % (e.filename, e.strerror))
+def combinePDF(pdf_dir, chart):
+    #Combine pdfs
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', r'.*Multiple definitions in dictionary.*')
+        merger = PdfFileMerger(strict=False)
+        for filename in os.listdir(pdf_dir):
+            merger.append(PdfFileReader(str(pdf_dir / filename), strict=False))
+        with open(str(pdf_dir / "all_pages.pdf"), 'wb') as fh:
+            merger.write(fh)
 
+        #Create combined pdf on one page
+        with open(str(pdf_dir / 'all_pages.pdf'), 'rb') as input_file:
+            # load input pdf
+            input_pdf = PdfFileReader(input_file, strict=False)
+            num_pages = input_pdf.getNumPages()
+            output_pdf = input_pdf.getPage(num_pages-1)
+
+            for p in reversed(range(0,num_pages-1)):
+                second_pdf = input_pdf.getPage(p)
+                # dimensions for offset from loaded page (adding it to the top)
+                offset_x = 0 # use for x offset -> output_pdf.mediaBox[2]
+                offset_y = output_pdf.mediaBox[3]
+                #merge pdf pages
+                output_pdf.mergeTranslatedPage(second_pdf, offset_x, offset_y, expand=True)
+
+            # write finished pdf
+            output_file = io_dir / "Output" / (str(chart) + "_" + config['charts'][chart] + ".pdf")
+            with open(output_file, 'wb') as out_file:
+                    write_pdf = PdfFileWriter()
+                    write_pdf.addPage(output_pdf)
+                    write_pdf.write(out_file)
+
+def createDashCharts(chart):
+    dcc_chart_fig = []
+    p = 0
+    for plot in config['chart_figs'][chart]:
+        if p != len(config['chart_figs'][chart])-1: #if not the last chart
+            height = '20vh'
+        else:
+            height = '25vh'
+        dcc_chart_fig.append(dcc.Graph(id='graph' + str(p),
+                                            figure=config['chart_figs'][chart][plot],
+                                            style={'width': '98vw', 'height': ''+ height + ''}))
+        p = p + 1
+    return(dcc_chart_fig)
+
+#Create offline interactive chart figures
+def create_offline_graphs(chart):
+    div_chart_fig = OrderedDict()
+    p = 0
+    for plot in chart_figs[chart]:
+        div_chart_fig[plot] = plotly.offline.plot(chart_figs[chart][plot], include_plotlyjs=False, output_type='div')
+        div_chart_fig[plot] = div_chart_fig[plot].replace('style="height:100%; width:100%;"',
+        'style="height:20%; width:98%;"')
+        if p == len(chart_figs[chart])-1: #if the last chart
+            div_chart_fig[plot] = div_chart_fig[plot].replace('style="height:20%;"', 'style="height:25%;"')
+        p = p + 1
+    return(div_chart_fig)
 
 #########
 
 def main():
+    global config
     processArguments()
     setIOFolder(io_dir)
     
@@ -693,17 +772,15 @@ def main():
     processChartDFs(config['all_data']) # subsetted by chart criteria, melted and plot pars
     saveConfig()
 
-    print(config['all_data'])
-
     pbar = tqdm(config['charts'])
     for chart in pbar:
         pbar.set_description("Exporting chart %s" % chart)
         config['chart_figs'][chart]  = createChartFig(chart)
         config['div_chart_figs'][chart] = createOfflineCharts(chart)
-        export_html(chart)
-        export_png(chart)
-        export_pdf(chart)
-        config['dcc_chart_figs'][chart] = createDashGraphs(chart)
+        exportHTML(chart)
+        exportImage(chart, 'png')
+        exportImage(chart, 'pdf')
+        config['dcc_chart_figs'][chart] = createDashCharts(chart)
 
 if __name__ == "__main__":
     main()
