@@ -12,6 +12,10 @@ import re
 import numpy as np
 import pickle
 import shutil
+import plotly.graph_objects as go
+import plotly.offline.offline
+import math
+import humanize
 
 from config import *
 
@@ -54,10 +58,10 @@ def setIOFolder(folder):
 
 def deleteFolderContents(folder):
     if not os.path.exists(folder):
-        os.mkdir(folder)
+        folder.mkdir(parents=True, exist_ok=True)
     else:
         for filename in os.listdir(folder):
-            file_path = os.path.join(folder, filename)
+            file_path = folder / filename
             try:
                 if os.path.isfile(file_path) or os.path.islink(file_path):
                     os.unlink(file_path)
@@ -66,8 +70,16 @@ def deleteFolderContents(folder):
             except Exception as e:
                 print('Failed to delete %s. Reason: %s' % (file_path, e))
 
+def checkFolderExists(folder):
+    if not os.path.exists(folder):
+        folder.mkdir(parents=True, exist_ok=True)
+        return(False)
+    else:
+        return(True)
+
 def getConfig():
     global config
+    global update
     pfile_path = io_dir / "Temp" / 'config.pkl'
     if os.path.exists(pfile_path):
         with open(pfile_path, 'rb') as pfile:
@@ -76,6 +88,8 @@ def getConfig():
             config[key] = items[key]
     else:
         print("No pickled config.pkl data file exists, continuing with full data import!")
+        update = False
+        openinfoFile()
 
 def saveConfig():
     temp_folder = io_dir / "Temp"
@@ -100,8 +114,7 @@ def setUTCDatetime(date_str, old_tz, dt_format = "%d/%m/%Y %H:%M:%S"):
             datetime_set_old = timezone(old_tz).localize(datetime_set_naive)
             datetime_set_utc = datetime_set_old.astimezone(timezone('UTC'))
         except UnboundLocalError:
-            print("Set dt_format in function call or date_formats")
-            raise
+            raise ValueError("Set dt_format in function call or date_formats")
         return datetime_set_utc
 
 def processSetup(df):
@@ -235,21 +248,19 @@ def importFiles(dataset, folder):
                 if len(df) > 0 and max(df['DateTime']) >= config['date_start'] and min(df['DateTime']) <= config['date_end']:
                     dataset_in_folder.append(df)
                     files_imported.append(filename)
-    if dataset_in_folder != [None] and len(dataset_in_folder) > 0:
+    if (not all(df is None for df in dataset_in_folder)) and (len(dataset_in_folder) > 0):
         df_combined = pd.concat(dataset_in_folder, axis=0, ignore_index=True)
         return df_combined
     #else:
     #    df_combined = None
     
 
-def combineSortData(df_list):
+def combineSortData(df_dict):
     # Create one dataframe from all days data
-    for df in df_list.copy():
-        if df_list[df] is None:
-            df_list.pop(df)
+    df_dict_filtered = {k: v for k, v in df_dict.items() if v is not None}
 
-    if df_list != [None] and len(df_list) > 0:
-        df = pd.concat(df_list, axis=0, ignore_index=True)
+    if len(df_dict_filtered) > 0:
+        df = pd.concat(df_dict_filtered, axis=0, ignore_index=True)
         df.sort_values(by=['DateTime'], inplace=True)
         cols = ['DateTime']  + [col for col in df if col != 'DateTime']
         df = df[cols]
@@ -264,7 +275,7 @@ def combineSortData(df_list):
 
 def importData(dataset):
     num_folders = len(config['info']['datasets'].query('dataset == "' + dataset + '"')) + 1
-    folder_data_list = []
+    folder_data_list = {}
     if dataset not in config['files_imported']:
         config['files_imported'][dataset] = {}
     for folder in range(1, num_folders):
@@ -274,8 +285,8 @@ def importData(dataset):
         if dataset in CustomDataImports.preimport_functions:
             config['supporting_data_dict'][dataset] = CustomDataImports.preimport_functions[dataset](dataset, folder)
         # Import files
-        folder_data_list.append(importFiles(dataset, folder))
-    if folder_data_list != [None] and len(folder_data_list) > 0:
+        folder_data_list[folder] = importFiles(dataset, folder)
+    if (not any(df is None for df in folder_data_list)) & (len(folder_data_list) > 0):
         df_dataset = combineSortData(folder_data_list)
         return df_dataset
 
@@ -347,6 +358,7 @@ def createChartDFs(chart):
         config['chart_dfs'][chart] = df
 
 def meltData(chart):
+    global config
     data_cols = []
     err_cols = ["DateTime"]
 
@@ -380,6 +392,7 @@ def meltData(chart):
     config['chart_dfs_mlt'][chart] = df3
 
 def chartPlotDicts(chart):
+    global config
     par_info1 = config['info']['parameters'][
         config['info']['parameters']['parameter'].isin(config['chart_dfs_mlt'][chart].Parameter.unique())].drop(
         columns=["code", "parameter_ave"])
@@ -412,6 +425,259 @@ def processChartDFs(chart):
 
 #########
 
+def getChartInfo(chart):
+    chart_info = config['info']['plots'].loc[config['info']['plots'].index == chart]
+    chart_info = chart_info[chart_info['plot'].isin(config['chart_dfs_mlt'][chart].Plot.unique().tolist())]
+    return(chart_info)
+
+def addTrace(par, plot_fig, chart):
+    par_info = config['plot_pars'][chart].query('parameter == "' + par + '"')
+
+    def addLine(plot_fig):
+        legend_show = True #default on
+        if par_info['show_in_legend'].values == False or par_info['point'].values == True or par_info['bar'].values == True:
+            legend_show = False
+        trace = trace_base
+        trace.update(mode = "lines",
+                    line=dict(color=par_info['colour'][0], width=2, dash=par_info['dash'][0]),
+                    connectgaps=False,
+                    showlegend=legend_show)
+        plot_fig.add_trace(trace)
+        return(plot_fig)
+
+    def addPoints(plot_fig):
+        trace = trace_base
+        trace.update(mode = 'markers',
+                    marker = dict(color = par_info['fill'][0], symbol = par_info['shape'][0],
+                                line = dict(color = par_info['colour'][0],width=1)),
+                    showlegend = bool(par_info['show_in_legend'][0]),
+                    error_y = dict(type = 'data', array = y_error, visible = True))
+        plot_fig.add_trace(trace)
+        return(plot_fig)
+    
+    def addRibbon(plot_fig):
+        ribbon_base = go.Scatter(x=x_data,
+                                name=par_info['parameter_lab'][0],
+                                line=dict(color=par_info['colour'][0], dash = 'dot'),
+                                connectgaps=True,
+                                legendgroup=par_info['parameter_lab'][0],
+                                showlegend=False,
+                                hoverinfo='skip')
+        trace1 = ribbon_base
+        trace1.update(y=y_data + y_error, mode='lines', line=dict(width=0))
+        plot_fig.add_trace(trace1)
+        trace2 = ribbon_base
+        trace2.update(y=y_data - y_error, fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
+                    line=dict(width=0.5)) #fill to trace1 y
+        plot_fig.add_trace(trace2)
+        return(plot_fig)
+
+    if len(par_info) != 0:
+        par_data = config['chart_dfs_mlt'][chart][config['chart_dfs_mlt'][chart].Parameter == par]
+        x_data = par_data.DateTime
+        y_data = par_data.Value
+        y_error = par_data.Error
+
+        trace_base = go.Scatter(x=x_data, y=y_data,
+                    name=par_info['parameter_lab'][0], 
+                    legendgroup=par_info['parameter_lab'][0])
+
+        if par_info['line'].values == True:
+            plot_fig = addLine(plot_fig)
+
+        if par_info['point'].values == True:
+            plot_fig = addPoints(plot_fig)
+
+        if par_info['ribbon'].values == True:
+            plot_fig = addRibbon(plot_fig)
+    return(plot_fig)
+
+def modifyPlot(plot_fig, plot, chart):
+    plot_info = getChartInfo(chart).query('plot == "' + plot + '"')
+    plot_fig.update_layout(
+        margin=dict(l=100, r=250, b=15, t=15, pad=10),
+        template="simple_white",
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(
+            family="Arial",
+            size=config['info']['charts']['font_size'][chart],
+            color="black"
+        ))
+    plot_fig.update_yaxes(title_text=plot_info['ylab'][chart], mirror=True)
+    plot_fig.update_xaxes(showgrid=True, showticklabels=False, ticks="",
+        showline=True, mirror=True,
+        range=[min(config['chart_dfs_mlt'][chart].DateTime), max(config['chart_dfs_mlt'][chart].DateTime)],
+        )#fixedrange=True) #prevent x zoom
+    return(plot_fig)
+
+def getYMin(plot, chart):
+    plot_info = getChartInfo(chart).query('plot == "' + plot + '"')
+    plot_data = config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
+    if pd.isna(plot_info['ymin'][chart]):
+        ymin = min(plot_data['Value'] - plot_data['Error'].fillna(0))
+        if any(config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+            if ymin > 0:
+                ymin = 0.95 * ymin
+            else:
+                ymin = 1.05 * ymin
+    else:
+        ymin = plot_info['ymin'][chart]
+    return(ymin)
+
+def getYMax(plot, chart):
+    plot_info = getChartInfo(chart).query('plot == "' + plot + '"')
+    plot_data = config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
+    if pd.isna(plot_info['ymax'][chart]):
+        ymax = max(plot_data['Value'] + plot_data['Error'].fillna(0))
+        if any(config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+            if ymax > 0:
+                ymax = 1.05 * ymax
+            else:
+                ymax = 0.95 * ymax
+    else:
+        ymax = plot_info['ymax'][chart]
+    return(ymax)
+
+def setAxisRange(plot_fig, plot, chart):
+    plot_info = getChartInfo(chart).query('plot == "' + plot + '"')
+    ymin = getYMin(plot, chart)
+    ymax = getYMax(plot, chart)
+    if plot_info['log'][chart] == True:
+        plot_fig.update_layout(yaxis_type="log")
+        plot_fig.update_yaxes(range=[math.log(ymin, 10), math.log(ymax, 10)])
+    else:
+        plot_fig.update_yaxes(range=[ymin, ymax])
+    return(plot_fig)
+
+def createPlotFig(plot, chart):    
+    chart_info = getChartInfo(chart)
+    plot_info = chart_info.query('plot == "' + plot + '"')
+    plot_data = config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
+    plot_fig = go.Figure()
+    #Add traces
+    for par_id in range(0, len(plot_data.Parameter.unique())):
+        par = plot_data.Parameter.unique()[par_id]
+        plot_fig = addTrace(par, plot_fig, chart)
+    #Modify plot layout
+    plot_fig = modifyPlot(plot_fig, plot, chart)
+    plot_fig = setAxisRange(plot_fig, plot, chart)
+    #Add date to last plot in chart
+    if plot == chart_info['plot'].to_list()[len(chart_info['plot'].to_list())-1]:
+        plot_fig.update_xaxes(showticklabels=True, ticks="outside")
+
+    return(plot_fig)
+
+
+#Create plotly chart figures
+def createChartFig(chart):
+    chart_fig = {}
+    # For each plot
+    for plot in tqdm(getChartInfo(chart)['plot'].to_list(), desc = "Creating plots for chart " + str(chart)):
+        chart_fig[plot] =  createPlotFig(plot, chart)
+    return(chart_fig)
+
+#Create offline interactive chart figures
+def createOfflineCharts(chart):
+    div_chart_fig = {}
+    p = 0
+    for plot in config['chart_figs'][chart]:
+        div_chart_fig[plot] = plotly.offline.plot(config['chart_figs'][chart][plot], include_plotlyjs=False, output_type='div')
+        div_chart_fig[plot] = div_chart_fig[plot].replace('style="height:100%; width:100%;"',
+        'style="height:20%; width:98%;"')
+        if p == len(config['chart_figs'][chart])-1: #if the last chart
+            div_chart_fig[plot] = div_chart_fig[plot].replace('style="height:20%;"', 'style="height:25%;"')
+        p = p + 1
+    return(div_chart_fig)
+
+def export_html(chart):
+    #Build start and end strings
+    html_string_start = '''
+    <html>
+        <head>
+            <style>body{ margin:0 100; background:white; font-family: Arial, Helvetica, sans-serif}</style>
+        </head>
+        <body>
+            <h1>''' + config['project'] + ''' interactive data</h1>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            '''
+
+    html_string_end = '''
+        </body>
+    </html>'''
+
+    #Create html header
+    html_string = html_string_start
+
+    chart_start_date = config['info']['charts']['chart_range_start'][chart]
+    chart_end_date = config['info']['charts']['chart_range_end'][chart]
+    html_string = html_string + '''<p>''' + humanize.naturaldate(chart_start_date) + ''' to ''' + humanize.naturaldate(chart_end_date)
+
+    resample = config['info']['charts']['chart_res'][chart]
+    if resample != 0:
+        html_string = html_string + ''' | Data resampled over ''' + str(resample) + ''' minutes'''
+    
+    html_string = html_string + '''</p>'''
+
+    #Add divs to html string
+    for plot in config['div_chart_figs'][chart]:
+        html_string = html_string + config['div_chart_figs'][chart][plot]
+
+    #write finished html
+    html_string + html_string_end
+    html_filename = str(chart) + "_" + config['info']['charts'].loc[chart, 'chart'] + ".html"
+    checkFolderExists(io_dir / "Output")
+    hreport = open(io_dir / "Output" / html_filename,'w')
+    hreport.write(html_string)
+    hreport.close()
+
+def export_png(chart):
+    #Export PNGs
+    deleteFolderContents(io_dir / "Temp/PNGs")
+
+    png_folder = str(chart) + "_" + info['charts'].loc[chart, 'chart']
+    png_dir = io_dir / "Temp/PNGs/" /  png_folder
+    png_dir.mkdir(parents=True, exist_ok=True)
+
+    divisor = len(chart_figs[chart])-1 + info['charts']['last_fig_x'][chart]
+
+    p = 0
+    #Export individual pngs
+    for plot in chart_figs[chart]:
+        height = info['charts']['png_height'][chart]/divisor
+        if p == len(chart_figs[chart])-1: #if the last chart
+            height = height * info['charts']['last_fig_x'][chart]
+        
+        chart_to_export = copy.copy(chart_figs[chart][plot])
+        chart_to_export.update_layout(width=info['charts']['png_width'][chart],
+                                            height=height)
+        chart_to_export.write_image(png_dir + str(p).zfill(2) + "_" + plot + ".png",
+                                            scale=info['charts']['dpi'][chart]/96)
+        p = p + 1
+
+    images = [Image.open(png_dir + x) for x in os.listdir(png_dir)]
+    widths, heights = zip(*(i.size for i in images))
+
+    max_width = max(widths)
+    total_height = sum(heights)
+
+    new_im = Image.new('RGBA', (max_width, total_height))
+
+    y_offset = 0
+    for im in images:
+        new_im.paste(im, (0,y_offset))
+        y_offset += im.size[1]
+
+    new_im.save("Output/" + str(chart) + "_" + info['charts'].loc[chart, 'chart'] + ".png")
+
+    #Delete temp pngs
+    try:
+        shutil.rmtree(png_dir)
+    except OSError as e:
+        print ("Error: %s - %s." % (e.filename, e.strerror))
+
+
+#########
+
 def main():
     processArguments()
     setIOFolder(io_dir)
@@ -428,6 +694,16 @@ def main():
     saveConfig()
 
     print(config['all_data'])
+
+    pbar = tqdm(config['charts'])
+    for chart in pbar:
+        pbar.set_description("Exporting chart %s" % chart)
+        config['chart_figs'][chart]  = createChartFig(chart)
+        config['div_chart_figs'][chart] = createOfflineCharts(chart)
+        export_html(chart)
+        export_png(chart)
+        export_pdf(chart)
+        config['dcc_chart_figs'][chart] = createDashGraphs(chart)
 
 if __name__ == "__main__":
     main()

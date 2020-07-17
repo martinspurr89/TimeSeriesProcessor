@@ -26,3 +26,6 @@ config['styles'] = ['line', 'ribbon', 'bar', 'point']
 config['par_style_dict'] = {}
 config['chart_dfs_mlt'] = {}
 config['plot_pars'] = {}
+config['chart_figs'] = {}
+config['dcc_chart_figs'] = {}
+config['div_chart_figs'] = {}
