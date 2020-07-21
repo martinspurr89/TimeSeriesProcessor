@@ -29,3 +29,4 @@ config['plot_pars'] = {}
 config['chart_figs'] = {}
 config['dcc_chart_figs'] = {}
 config['div_chart_figs'] = {}
+config['app'] = None

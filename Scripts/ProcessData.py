@@ -105,7 +105,7 @@ def saveConfig():
 # Info file functions
 def setUTCDatetime(date_str, old_tz, dt_format = "%d/%m/%Y %H:%M:%S"):
     date_formats = ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"]
-    if date_str == 'NaT':
+    if date_str == 'NaT' or date_str == 'nan':
         return pd.NaT
     else:
         if dt_format not in date_formats: date_formats.append(dt_format)
@@ -231,7 +231,7 @@ def readFile(dataset, folder, filename):
         if not pd.isna(del_rows):
             df = df.drop(0).reset_index()
         #Choose parameters included in parameters sheet
-        config['selected_pars'] = list(config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
+        #config['selected_pars'] = list(config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
         df = df.drop(df.columns.difference(['DateTime'] + config['selected_pars']), axis=1)
         #Make floats
         for col in config['selected_pars']:
@@ -756,6 +756,77 @@ def create_offline_graphs(chart):
 
 #########
 
+def createApp():
+    global app
+    external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+    #app = JupyterDash('__name__')
+    config['app'] = dash.Dash(__name__, external_stylesheets=external_stylesheets)
+
+    card_style = {
+        "box-shadow": "0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12), 0 2px 4px -1px rgba(0,0,0,0.3)"
+    }
+
+    #app.scripts.config.serve_locally = True
+
+    # app.layout = dcc.Loading(
+    #     children=[html.Div(
+
+    tabs_init = []
+    p = 0
+    for chart in charts:
+        tabs_init.append(dcc.Tab(label=config['charts'][chart], value="".join(["tab-", str(p)]),
+                                style={'backgroundColor': '#f5f5f5'}))
+        p = p+1
+
+    app.layout = html.Div(className="sans-serif",
+                        children=[
+                        html.Div(
+                            className="w-60 center pt4",
+                            children=[
+                                dcc.Tabs(
+                                    id="tabs",
+                                    value="tab-0",
+                                    children=tabs_init,
+                                    colors={
+                                        "primary": "white",
+                                        "background": "white",
+                                        "border": "#d2d2d2",
+                                    },
+                                    parent_style=card_style,
+                                ),
+                                html.Div(
+                                    children=[
+                                        dcc.Loading(id='tabs-content',
+                                                    type='graph', className='pv6')
+                                    ],
+                                    className='pa4'
+                                ),
+                            ],
+                            style={},
+                        ),
+                    ],
+                )# ], type='default', fullscreen=True)
+
+    @app.callback(Output('tabs-content', 'children'),
+                [Input('tabs', 'value')])
+    def render_content(tab):
+        time.sleep(2)
+        if tab == 'tab-0':
+            return html.Div(children=[
+                # html.Label('From 1994 to 2018', id='time-range-label'),
+                html.Div(id='loading-0', children=config['dcc_chart_figs'][0])])
+        elif tab == 'tab-1':
+            return html.Div(id='loading-1', children=config['dcc_chart_figs'][1])
+        elif tab == 'tab-2':
+            return html.Div(id='loading-2', children=config['dcc_chart_figs'][2])
+        elif tab == 'tab-3':
+            return html.Div(id='loading-3', children=config['dcc_chart_figs'][3])
+
+    print("App ready: " + str(date_now))
+
+
+#########
+
 def main():
     global config
     processArguments()
@@ -784,4 +855,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+    createApp()
+    config['app'].run_server()
+    #debug=True, dev_tools_hot_reload_interval=5000)
+                   #dev_tools_hot_reload_max_retry=30)
 
