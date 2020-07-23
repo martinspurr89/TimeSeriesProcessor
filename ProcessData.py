@@ -20,17 +20,20 @@ import copy
 from PIL import Image
 import warnings
 from PyPDF2 import PdfFileMerger, PdfFileReader, PdfFileWriter
-import dash_core_components as dcc
 
-from config import *
+import dash
+import dash_core_components as dcc
+import dash_html_components as html
+from dash.dependencies import Input, Output, State
+import time
+import base64
+
+import config
 
 def helper():
     print("Help")
 
 def processArguments():
-    global io_dir
-    global update
-    global verbose
     try:
         opts, args = getopt.getopt(sys.argv[1:], "d:uv", ["io_dir=", "update"])
     except getopt.GetoptError as err:
@@ -39,14 +42,14 @@ def processArguments():
         sys.exit(2)
     for opt, arg in opts:
         if opt == "-v":
-            verbose = True
+            config.verbose = True
         elif opt in ("-h", "--help"):
             helper()
             sys.exit()
         elif opt in ("-d", "--io_dir"):
-            io_dir = Path(arg)
+            config.io_dir = Path(arg)
         elif opt in ("-o", "--update"):
-            update = True
+            config.update = True
         else:
             assert False, "unhandled option"
 
@@ -83,24 +86,22 @@ def checkFolderExists(folder):
         return(True)
 
 def getConfig():
-    global config
-    global update
-    pfile_path = io_dir / "Temp" / 'config.pkl'
+    pfile_path = config.io_dir / "Temp" / 'config.pkl'
     if os.path.exists(pfile_path):
         with open(pfile_path, 'rb') as pfile:
             items = pickle.load(pfile)
         for key in list(items.keys()):
-            config[key] = items[key]
+            config.config[key] = items[key]
     else:
         print("No pickled config.pkl data file exists, continuing with full data import!")
-        update = False
+        config.update = False
         openinfoFile()
 
-def saveConfig():
-    temp_folder = io_dir / "Temp"
+def saveObject(object_to_save, filename):
+    temp_folder = config.io_dir / "Temp"
     deleteFolderContents(temp_folder)
-    with open(temp_folder / 'config.pkl', 'wb') as pfile:
-        pickle.dump(config, pfile, protocol=-1)
+    with open(temp_folder / filename, 'wb') as pfile:
+        pickle.dump(object_to_save, pfile, protocol=-1)
 
 # Info file functions
 def setUTCDatetime(date_str, old_tz, dt_format = "%d/%m/%Y %H:%M:%S"):
@@ -123,38 +124,36 @@ def setUTCDatetime(date_str, old_tz, dt_format = "%d/%m/%Y %H:%M:%S"):
         return datetime_set_utc
 
 def processSetup(df):
-    global config
-    config['project'] = df.loc['project', 'value']
-    config['refresh_hours']  = df.loc['refresh_hours', 'value']
+    config.config['project'] = df.loc['project', 'value']
+    config.config['refresh_hours']  = df.loc['refresh_hours', 'value']
     
     #Process start date
     if not pd.isna(df.loc['date_start_utc', 'value']):
-        config['date_start'] = setUTCDatetime(str(df.loc['date_start_utc', 'value']), "UTC", "%Y-%m-%d %H:%M:%S")
+        config.config['date_start'] = setUTCDatetime(str(df.loc['date_start_utc', 'value']), "UTC", "%Y-%m-%d %H:%M:%S")
     else:
         raise ValueError("Set dt_format in function call or date_formats")
 
     #Process end date
     if not pd.isna(df.loc['date_end_utc', 'value']):
-        config['date_end'] = setUTCDatetime(str(df.loc['date_end_utc', 'value']), "UTC", "%Y-%m-%d %H:%M:%S")
+        config.config['date_end'] = setUTCDatetime(str(df.loc['date_end_utc', 'value']), "UTC", "%Y-%m-%d %H:%M:%S")
     else:
-        config['date_end'] = datetime.now(timezone('UTC')).replace(microsecond=0)
+        config.config['date_end'] = datetime.now(timezone('UTC')).replace(microsecond=0)
     
-    df.loc['date_start_utc', 'value'] = config['date_start']
-    df.loc['date_end_utc', 'value'] = config['date_end']
+    df.loc['date_start_utc', 'value'] = config.config['date_start']
+    df.loc['date_end_utc', 'value'] = config.config['date_end']
     return df
 
-def dateRange(window=-1, start=config['date_start'], end=config['date_end']):
+def dateRange(window=-1, start=config.config['date_start'], end=config.config['date_end']):
     if pd.isna(start):
-        start = config['date_start']
+        start = config.config['date_start']
     if pd.isna(end):
-        end = config['date_end']
+        end = config.config['date_end']
     if window != -1:
         if not pd.isna(window):
             start = end - timedelta(days=window)
     return start, end
 
 def processCharts(df):
-    global config
     for chart, row in df.iterrows():
         chart_range = dateRange(window=row['chart_range_window'],
                                 start=setUTCDatetime(str(row['chart_range_start']), "UTC", "%Y-%m-%d %H:%M:%S"),
@@ -163,17 +162,16 @@ def processCharts(df):
         df.loc[chart, 'chart_range_end'] = chart_range[1]
         df.loc[chart, 'chart_range_window'] = chart_range[1] - chart_range[0]
         if df.loc[chart, 'chart_status'] == "ON":
-            config['charts'][chart] = df.loc[chart, 'chart']
+            config.config['charts'][chart] = df.loc[chart, 'chart']
     return df
 
 def createParPlotDict():
-    global config
-    pars = config['info']['parameters']['parameter'].to_list() + config['info']['parameters_ave']['parameter_ave'].to_list()
-    plots = config['info']['parameters']['plot'].to_list() + config['info']['parameters_ave']['plot'].to_list()
-    config['par_plot_dict'] = dict(zip(pars, plots))
+    pars = config.config['info']['parameters']['parameter'].to_list() + config.config['info']['parameters_ave']['parameter_ave'].to_list()
+    plots = config.config['info']['parameters']['plot'].to_list() + config.config['info']['parameters_ave']['plot'].to_list()
+    config.config['par_plot_dict'] = dict(zip(pars, plots))
 
-    for style in config['styles']:
-        config['par_style_dict'][style] = config['info']['parameters'].query(style + ' == True')['parameter'].to_list() + config['info']['parameters_ave'].query(style + ' == True')['parameter_ave'].to_list()
+    for style in config.config['styles']:
+        config.config['par_style_dict'][style] = config.config['info']['parameters'].query(style + ' == True')['parameter'].to_list() + config.config['info']['parameters_ave'].query(style + ' == True')['parameter_ave'].to_list()
 
 def processColours(df):
     df['rgb'] = list(zip(
@@ -184,36 +182,33 @@ def processColours(df):
     return df
 
 def openinfoFile():
-    global config
     info_fname = "info.xlsx"
-    config['info'] = pd.read_excel(io_dir / info_fname, sheet_name=None, index_col=0)
-    config['info']['setup'] = processSetup(config['info']['setup'])
-    config['info']['charts'] = processCharts(config['info']['charts'])
+    config.config['info'] = pd.read_excel(config.io_dir / info_fname, sheet_name=None, index_col=0)
+    config.config['info']['setup'] = processSetup(config.config['info']['setup'])
+    config.config['info']['charts'] = processCharts(config.config['info']['charts'])
     createParPlotDict()
-    config['info']['colours'] = processColours(config['info']['colours'])
+    config.config['info']['colours'] = processColours(config.config['info']['colours'])
 
 # Data import functions
 def selectDatasets():
-    global config
     selected_cols = []
-    for chart in config['charts']:
+    for chart in config.config['charts']:
         selected_cols.append("selected_chart_" + str(chart))
         
-    selected_pars_inc = config['info']['parameters'][selected_cols].isin([1]).any(axis=1)
-    config['selected_pars'] = list(config['info']['parameters'][selected_pars_inc]['parameter'].values)
+    selected_pars_inc = config.config['info']['parameters'][selected_cols].isin([1]).any(axis=1)
+    config.config['selected_pars'] = list(config.config['info']['parameters'][selected_pars_inc]['parameter'].values)
     
-    selected_pars_ave_inc = config['info']['parameters_ave'][selected_cols].isin([1]).any(axis=1)
-    config['selected_pars'] = config['selected_pars'] + list(config['info']['parameters_ave'][selected_pars_ave_inc]['parameter_ave'].values)
+    selected_pars_ave_inc = config.config['info']['parameters_ave'][selected_cols].isin([1]).any(axis=1)
+    config.config['selected_pars'] = config.config['selected_pars'] + list(config.config['info']['parameters_ave'][selected_pars_ave_inc]['parameter_ave'].values)
     selected_pars_all_inc = pd.concat([selected_pars_inc, selected_pars_ave_inc])
 
-    config['selected_datasets'] = list(selected_pars_all_inc[selected_pars_all_inc].index.unique().values)
+    config.config['selected_datasets'] = list(selected_pars_all_inc[selected_pars_all_inc].index.unique().values)
 
 def readFile(dataset, folder, filename):
-    global config
-    file_pat = config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
-    del_rows = config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['Del_unit_rows'][dataset]
+    file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
+    del_rows = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['Del_unit_rows'][dataset]
     
-    for pat in config['filetypes']:
+    for pat in config.config['filetypes']:
         if re.search(pat, file_pat, re.IGNORECASE):
             df = CustomDataImports.fileImport(dataset, folder, filename, pat)
             break
@@ -224,17 +219,17 @@ def readFile(dataset, folder, filename):
         if dataset in CustomDataImports.import_functions:
             df = CustomDataImports.import_functions[dataset](df)
         # Name parameter columns
-        code_par_dict = dict(zip(config['info']['parameters'].query('dataset == "' + dataset + '"')['code'],
-                                    config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter']))
+        code_par_dict = dict(zip(config.config['info']['parameters'].query('dataset == "' + dataset + '"')['code'],
+                                    config.config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter']))
         df = df.rename(columns=code_par_dict)
         # Delete unit rows
         if not pd.isna(del_rows):
             df = df.drop(0).reset_index()
         #Choose parameters included in parameters sheet
-        #config['selected_pars'] = list(config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
-        df = df.drop(df.columns.difference(['DateTime'] + config['selected_pars']), axis=1)
+        #config.config['selected_pars'] = list(config.config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
+        df = df.drop(df.columns.difference(['DateTime'] + config.config['selected_pars']), axis=1)
         #Make floats
-        for col in config['selected_pars']:
+        for col in config.config['selected_pars']:
             try:
                 df.loc[:,col] = df.loc[:,col].astype(float)
             except:
@@ -246,17 +241,16 @@ def readFile(dataset, folder, filename):
         return df
 
 def importFiles(dataset, folder):
-    global config
-    data_folder_path = Path(config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['data_folder_path'][dataset])
-    file_pat = config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
-    files_imported = config['files_imported'][dataset][folder]
+    data_folder_path = Path(config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['data_folder_path'][dataset])
+    file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
+    files_imported = config.config['files_imported'][dataset][folder]
     dataset_in_folder = []
     for filename in tqdm(os.listdir(data_folder_path), desc="Open files to import"):
         if re.search(file_pat, filename) and not filename.startswith('.'):
             if filename not in files_imported:
                 df = readFile(dataset, folder, filename)
                 # Keep if longer than 0 lines and within timeframe
-                if len(df) > 0 and max(df['DateTime']) >= config['date_start'] and min(df['DateTime']) <= config['date_end']:
+                if len(df) > 0 and max(df['DateTime']) >= config.config['date_start'] and min(df['DateTime']) <= config.config['date_end']:
                     dataset_in_folder.append(df)
                     files_imported.append(filename)
     if (not all(df is None for df in dataset_in_folder)) and (len(dataset_in_folder) > 0):
@@ -277,25 +271,24 @@ def combineSortData(df_dict):
         df = df[cols]
         df = df.reset_index(drop=True)
 
-        df = df[df['DateTime'] >= config['date_start']]
-        df = df[df['DateTime'] <= config['date_end']]
+        df = df[df['DateTime'] >= config.config['date_start']]
+        df = df[df['DateTime'] <= config.config['date_end']]
         return df
     else:
         print('No data to combine!')
     
 
 def importData(dataset):
-    global config
-    num_folders = len(config['info']['datasets'].query('dataset == "' + dataset + '"')) + 1
+    num_folders = len(config.config['info']['datasets'].query('dataset == "' + dataset + '"')) + 1
     folder_data_list = {}
-    if dataset not in config['files_imported']:
-        config['files_imported'][dataset] = {}
+    if dataset not in config.config['files_imported']:
+        config.config['files_imported'][dataset] = {}
     for folder in range(1, num_folders):
-        if folder not in config['files_imported'][dataset]:
-            config['files_imported'][dataset][folder] = []
+        if folder not in config.config['files_imported'][dataset]:
+            config.config['files_imported'][dataset][folder] = []
         # Custom pre-import functions
         if dataset in CustomDataImports.preimport_functions:
-            config['supporting_data_dict'][dataset] = CustomDataImports.preimport_functions[dataset](dataset, folder)
+            config.config['supporting_data_dict'][dataset] = CustomDataImports.preimport_functions[dataset](dataset, folder)
         # Import files
         folder_data_list[folder] = importFiles(dataset, folder)
     if (not any(df is None for df in folder_data_list)) & (len(folder_data_list) > 0):
@@ -305,7 +298,7 @@ def importData(dataset):
 def importDatasets():
     selectDatasets()
     dataset_data = {}
-    for dataset in tqdm(config['selected_datasets'], desc = "Import data from each dataset"):
+    for dataset in tqdm(config.config['selected_datasets'], desc = "Import data from each dataset"):
         df = importData(dataset)
         if df is not None:
             dataset_data[dataset] = df
@@ -318,10 +311,10 @@ def averageReps(df):
     ave_cols = []
     if df is not None:
         for col in df.columns[1:].to_list():
-            ave_col = config['info']['parameters'].query('parameter == "' + col + '"')['parameter_ave'][0]
+            ave_col = config.config['info']['parameters'].query('parameter == "' + col + '"')['parameter_ave'][0]
             if ave_col != col:
                 if ave_col not in ave_cols:
-                    cols = config['info']['parameters'].query('parameter_ave == "' + ave_col + '"')['parameter'].to_list()
+                    cols = config.config['info']['parameters'].query('parameter_ave == "' + ave_col + '"')['parameter'].to_list()
                     df[ave_col] = df[cols].mean(axis=1)
                     if len(cols) > 2:
                         df[ave_col + "_err"] = np.nanstd(df[cols], axis=1)
@@ -332,7 +325,7 @@ def averageReps(df):
                     ave_cols.append(ave_col)
 
         err_pars = [ave_col + "_err" for ave_col in ave_cols]
-        chosen_pars = config['selected_pars'] + err_pars
+        chosen_pars = config.config['selected_pars'] + err_pars
         chosen_pars = [par for par in chosen_pars if par in df.columns]
 
         df = df[["DateTime"]+ chosen_pars]
@@ -342,38 +335,36 @@ def processAllData(df_dict):
     df = combineSortData(df_dict)
     df = averageReps(df)
 
-    if update:
-        all_dict = {'all': config['all_data'], 'new': df}
+    if config.update:
+        all_dict = {'all': config.config['all_data'], 'new': df}
         df = combineSortData(all_dict)
 
     return df
 
 # Chart functions
 def createChartDFs(chart):
-    global config
-    mask = (config['all_data']['DateTime'] >= config['info']['charts'].loc[chart, 'chart_range_start']) & (
-            config['all_data']['DateTime'] <= config['info']['charts'].loc[chart, 'chart_range_end'])
-    df = config['all_data'].loc[mask]
-    if config['info']['charts'].loc[chart, 'chart_res'] != 0:
-        df = df.resample("".join([str(config['info']['charts'].loc[chart, 'chart_res']), 'T']), on='DateTime').mean()
+    mask = (config.config['all_data']['DateTime'] >= config.config['info']['charts'].loc[chart, 'chart_range_start']) & (
+            config.config['all_data']['DateTime'] <= config.config['info']['charts'].loc[chart, 'chart_range_end'])
+    df = config.config['all_data'].loc[mask]
+    if config.config['info']['charts'].loc[chart, 'chart_res'] != 0:
+        df = df.resample("".join([str(config.config['info']['charts'].loc[chart, 'chart_res']), 'T']), on='DateTime').mean()
         df = df.reset_index()
     else:
         df = df.reset_index(drop=True)
     
     if len(df) == 0:
-        config['info']['charts'].loc[chart, 'chart_status'] = 'OFF'
-        config['charts'].pop(chart)
+        config.config['info']['charts'].loc[chart, 'chart_status'] = 'OFF'
+        config.config['charts'].pop(chart)
         print("Turning OFF chart " + str(chart) + ": empty dataset within timeframe")
     else:
-        config['chart_dfs'][chart] = df
+        config.config['chart_dfs'][chart] = df
 
 def meltData(chart):
-    global config
     data_cols = []
     err_cols = ["DateTime"]
 
-    criteria = config['chart_dfs'][chart].isna().all()
-    wide_data = config['chart_dfs'][chart][criteria.index[-criteria]]
+    criteria = config.config['chart_dfs'][chart].isna().all()
+    wide_data = config.config['chart_dfs'][chart][criteria.index[-criteria]]
 
     for col in wide_data.columns:
         if "_err" not in col:
@@ -395,53 +386,52 @@ def meltData(chart):
     df3.sort_values(by=['DateTime', 'Parameter'], inplace=True)
 
 
-    df3.drop(df3[df3['Parameter'].isin(config['par_style_dict']['point']) & np.isnan(df3['Value'])].index, inplace=True)
-    df3.drop(df3[df3['Parameter'].isin(config['par_style_dict']['bar']) & np.isnan(df3['Value'])].index, inplace=True)
+    df3.drop(df3[df3['Parameter'].isin(config.config['par_style_dict']['point']) & np.isnan(df3['Value'])].index, inplace=True)
+    df3.drop(df3[df3['Parameter'].isin(config.config['par_style_dict']['bar']) & np.isnan(df3['Value'])].index, inplace=True)
 
-    df3.loc[:, 'Plot'] = df3['Parameter'].map(config['par_plot_dict'])
-    config['chart_dfs_mlt'][chart] = df3
+    df3.loc[:, 'Plot'] = df3['Parameter'].map(config.config['par_plot_dict'])
+    config.config['chart_dfs_mlt'][chart] = df3
 
 def chartPlotDicts(chart):
-    global config
-    par_info1 = config['info']['parameters'][
-        config['info']['parameters']['parameter'].isin(config['chart_dfs_mlt'][chart].Parameter.unique())].drop(
+    par_info1 = config.config['info']['parameters'][
+        config.config['info']['parameters']['parameter'].isin(config.config['chart_dfs_mlt'][chart].Parameter.unique())].drop(
         columns=["code", "parameter_ave"])
-    par_info2 = config['info']['parameters_ave'][
-        config['info']['parameters_ave']['parameter_ave'].isin(config['chart_dfs_mlt'][chart].Parameter.unique())].rename(
+    par_info2 = config.config['info']['parameters_ave'][
+        config.config['info']['parameters_ave']['parameter_ave'].isin(config.config['chart_dfs_mlt'][chart].Parameter.unique())].rename(
         columns={"parameter_ave": "parameter"})
     par_info_all = (par_info1.append(par_info2)).query('selected_chart_' + str(chart) + ' == 1')
 
     # Convert colour id to rgb string
-    par_info_all['colour'].replace(config['info']['colours']['rgba_str'].to_dict(), inplace=True)
-    par_info_all['fill'].replace(config['info']['colours']['rgba_str'].to_dict(), inplace=True)
+    par_info_all['colour'].replace(config.config['info']['colours']['rgba_str'].to_dict(), inplace=True)
+    par_info_all['fill'].replace(config.config['info']['colours']['rgba_str'].to_dict(), inplace=True)
 
     # Set defaults for NAs
-    par_info_all['colour'].fillna(config['info']['colours'].query("theme == 'dark'")['rgba_str'].to_list()[0], inplace=True)
-    par_info_all['fill'].fillna(config['info']['colours'].query("theme == 'dark'")['rgba_str'].to_list()[0], inplace=True)
+    par_info_all['colour'].fillna(config.config['info']['colours'].query("theme == 'dark'")['rgba_str'].to_list()[0], inplace=True)
+    par_info_all['fill'].fillna(config.config['info']['colours'].query("theme == 'dark'")['rgba_str'].to_list()[0], inplace=True)
     par_info_all['shape'].fillna(1, inplace=True)
     par_info_all['dash'].fillna("solid", inplace=True)
     par_info_all['show_in_legend'].fillna(True, inplace=True)
 
     par_info_all.loc[par_info_all['ribbon'] == True, 'fill'] = par_info_all.loc[par_info_all['ribbon'] == True, 'fill'].str.replace(",1\)", ",0.25)")
 
-    config['plot_pars'][chart] = par_info_all
+    config.config['plot_pars'][chart] = par_info_all
 
 def processChartDFs(chart):
-    for chart in config['charts'].copy():
+    for chart in config.config['charts'].copy():
         createChartDFs(chart)
-    for chart in tqdm(config['charts'], desc="Melt data and create chart dictionaries"):
+    for chart in tqdm(config.config['charts'], desc="Melt data and create chart dictionaries"):
         meltData(chart)
         chartPlotDicts(chart)
 
 #########
 
 def getChartInfo(chart):
-    chart_info = config['info']['plots'].loc[config['info']['plots'].index == chart]
-    chart_info = chart_info[chart_info['plot'].isin(config['chart_dfs_mlt'][chart].Plot.unique().tolist())]
+    chart_info = config.config['info']['plots'].loc[config.config['info']['plots'].index == chart]
+    chart_info = chart_info[chart_info['plot'].isin(config.config['chart_dfs_mlt'][chart].Plot.unique().tolist())]
     return(chart_info)
 
 def addTrace(par, plot_fig, chart):
-    par_info = config['plot_pars'][chart].query('parameter == "' + par + '"')
+    par_info = config.config['plot_pars'][chart].query('parameter == "' + par + '"')
 
     def addLine(plot_fig):
         legend_show = True #default on
@@ -483,7 +473,7 @@ def addTrace(par, plot_fig, chart):
         return(plot_fig)
 
     if len(par_info) != 0:
-        par_data = config['chart_dfs_mlt'][chart][config['chart_dfs_mlt'][chart].Parameter == par]
+        par_data = config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == par]
         x_data = par_data.DateTime
         y_data = par_data.Value
         y_error = par_data.Error
@@ -510,22 +500,22 @@ def modifyPlot(plot_fig, plot, chart):
         paper_bgcolor='rgba(0,0,0,0)',
         font=dict(
             family="Arial",
-            size=config['info']['charts']['font_size'][chart],
+            size=config.config['info']['charts']['font_size'][chart],
             color="black"
         ))
     plot_fig.update_yaxes(title_text=plot_info['ylab'][chart], mirror=True)
     plot_fig.update_xaxes(showgrid=True, showticklabels=False, ticks="",
         showline=True, mirror=True,
-        range=[min(config['chart_dfs_mlt'][chart].DateTime), max(config['chart_dfs_mlt'][chart].DateTime)],
+        range=[min(config.config['chart_dfs_mlt'][chart].DateTime), max(config.config['chart_dfs_mlt'][chart].DateTime)],
         )#fixedrange=True) #prevent x zoom
     return(plot_fig)
 
 def getYMin(plot, chart):
     plot_info = getChartInfo(chart).query('plot == "' + plot + '"')
-    plot_data = config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
+    plot_data = config.config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
     if pd.isna(plot_info['ymin'][chart]):
         ymin = min(plot_data['Value'] - plot_data['Error'].fillna(0))
-        if any(config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+        if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
             if ymin > 0:
                 ymin = 0.95 * ymin
             else:
@@ -536,10 +526,10 @@ def getYMin(plot, chart):
 
 def getYMax(plot, chart):
     plot_info = getChartInfo(chart).query('plot == "' + plot + '"')
-    plot_data = config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
+    plot_data = config.config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
     if pd.isna(plot_info['ymax'][chart]):
         ymax = max(plot_data['Value'] + plot_data['Error'].fillna(0))
-        if any(config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+        if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
             if ymax > 0:
                 ymax = 1.05 * ymax
             else:
@@ -562,7 +552,7 @@ def setAxisRange(plot_fig, plot, chart):
 def createPlotFig(plot, chart):    
     chart_info = getChartInfo(chart)
     plot_info = chart_info.query('plot == "' + plot + '"')
-    plot_data = config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
+    plot_data = config.config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
     plot_fig = go.Figure()
     #Add traces
     for par_id in range(0, len(plot_data.Parameter.unique())):
@@ -590,11 +580,11 @@ def createChartFig(chart):
 def createOfflineCharts(chart):
     div_chart_fig = {}
     p = 0
-    for plot in config['chart_figs'][chart]:
-        div_chart_fig[plot] = plotly.offline.plot(config['chart_figs'][chart][plot], include_plotlyjs=False, output_type='div')
+    for plot in config.config['chart_figs'][chart]:
+        div_chart_fig[plot] = plotly.offline.plot(config.config['chart_figs'][chart][plot], include_plotlyjs=False, output_type='div')
         div_chart_fig[plot] = div_chart_fig[plot].replace('style="height:100%; width:100%;"',
         'style="height:20%; width:98%;"')
-        if p == len(config['chart_figs'][chart])-1: #if the last chart
+        if p == len(config.config['chart_figs'][chart])-1: #if the last chart
             div_chart_fig[plot] = div_chart_fig[plot].replace('style="height:20%;"', 'style="height:25%;"')
         p = p + 1
     return(div_chart_fig)
@@ -607,7 +597,7 @@ def exportHTML(chart):
             <style>body{ margin:0 100; background:white; font-family: Arial, Helvetica, sans-serif}</style>
         </head>
         <body>
-            <h1>''' + config['project'] + ''' interactive data</h1>
+            <h1>''' + config.config['project'] + ''' interactive data</h1>
             <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
             '''
 
@@ -618,49 +608,49 @@ def exportHTML(chart):
     #Create html header
     html_string = html_string_start
 
-    chart_start_date = config['info']['charts']['chart_range_start'][chart]
-    chart_end_date = config['info']['charts']['chart_range_end'][chart]
+    chart_start_date = config.config['info']['charts']['chart_range_start'][chart]
+    chart_end_date = config.config['info']['charts']['chart_range_end'][chart]
     html_string = html_string + '''<p>''' + humanize.naturaldate(chart_start_date) + ''' to ''' + humanize.naturaldate(chart_end_date)
 
-    resample = config['info']['charts']['chart_res'][chart]
+    resample = config.config['info']['charts']['chart_res'][chart]
     if resample != 0:
         html_string = html_string + ''' | Data resampled over ''' + str(resample) + ''' minutes'''
     
     html_string = html_string + '''</p>'''
 
     #Add divs to html string
-    for plot in config['div_chart_figs'][chart]:
-        html_string = html_string + config['div_chart_figs'][chart][plot]
+    for plot in config.config['div_chart_figs'][chart]:
+        html_string = html_string + config.config['div_chart_figs'][chart][plot]
 
     #write finished html
     html_string + html_string_end
-    html_filename = str(chart) + "_" + config['charts'][chart] + ".html"
-    checkFolderExists(io_dir / "Output")
-    hreport = open(io_dir / "Output" / html_filename,'w')
+    html_filename = str(chart) + "_" + config.config['charts'][chart] + ".html"
+    checkFolderExists(config.io_dir / "Output")
+    hreport = open(config.io_dir / "Output" / html_filename,'w')
     hreport.write(html_string)
     hreport.close()
 
 def createTempChartDir(chart, otype):
-    temp_path = io_dir / "Temp" / (otype + "s")
+    temp_path = config.io_dir / "Temp" / (otype + "s")
     deleteFolderContents(temp_path)
-    odir = temp_path /  (str(chart) + "_" + config['charts'][chart])
+    odir = temp_path /  (str(chart) + "_" + config.config['charts'][chart])
     odir.mkdir(parents=True, exist_ok=True)
     return(odir)
 
 def exportImage(chart, otype):
     image_dir = createTempChartDir(chart, otype.upper())
-    divisor = len(config['chart_figs'][chart])-1 + config['info']['charts']['last_fig_x'][chart]
-    scaler = {'png': config['info']['charts']['dpi'][chart]/96,
+    divisor = len(config.config['chart_figs'][chart])-1 + config.config['info']['charts']['last_fig_x'][chart]
+    scaler = {'png': config.config['info']['charts']['dpi'][chart]/96,
               'pdf': 1}
     #Export individual images
     p = 0
-    for plot in config['chart_figs'][chart]:
-        height = config['info']['charts'][otype + '_height'][chart]/divisor
-        if p == len(config['chart_figs'][chart])-1: #if the last chart
-            height = height * config['info']['charts']['last_fig_x'][chart]
+    for plot in config.config['chart_figs'][chart]:
+        height = config.config['info']['charts'][otype + '_height'][chart]/divisor
+        if p == len(config.config['chart_figs'][chart])-1: #if the last chart
+            height = height * config.config['info']['charts']['last_fig_x'][chart]
         
-        chart_to_export = copy.copy(config['chart_figs'][chart][plot])
-        chart_to_export.update_layout(width=config['info']['charts'][otype + '_width'][chart],
+        chart_to_export = copy.copy(config.config['chart_figs'][chart][plot])
+        chart_to_export.update_layout(width=config.config['info']['charts'][otype + '_width'][chart],
                                             height=height)
         chart_to_export.write_image(str(image_dir / (str(p).zfill(2) + "_" + plot + "." + otype)),
                                             scale=scaler)
@@ -692,8 +682,8 @@ def combinePNG(png_dir, chart):
         new_im.paste(im, (0,y_offset))
         y_offset += im.size[1]
 
-    png_filename = str(chart) + "_" + config['charts'][chart] + ".png"
-    new_im.save(io_dir / "Output" /  png_filename)
+    png_filename = str(chart) + "_" + config.config['charts'][chart] + ".png"
+    new_im.save(config.io_dir / "Output" /  png_filename)
 
 def combinePDF(pdf_dir, chart):
     #Combine pdfs
@@ -721,25 +711,11 @@ def combinePDF(pdf_dir, chart):
                 output_pdf.mergeTranslatedPage(second_pdf, offset_x, offset_y, expand=True)
 
             # write finished pdf
-            output_file = io_dir / "Output" / (str(chart) + "_" + config['charts'][chart] + ".pdf")
+            output_file = config.io_dir / "Output" / (str(chart) + "_" + config.config['charts'][chart] + ".pdf")
             with open(output_file, 'wb') as out_file:
                     write_pdf = PdfFileWriter()
                     write_pdf.addPage(output_pdf)
                     write_pdf.write(out_file)
-
-def createDashCharts(chart):
-    dcc_chart_fig = []
-    p = 0
-    for plot in config['chart_figs'][chart]:
-        if p != len(config['chart_figs'][chart])-1: #if not the last chart
-            height = '20vh'
-        else:
-            height = '25vh'
-        dcc_chart_fig.append(dcc.Graph(id='graph' + str(p),
-                                            figure=config['chart_figs'][chart][plot],
-                                            style={'width': '98vw', 'height': ''+ height + ''}))
-        p = p + 1
-    return(dcc_chart_fig)
 
 #Create offline interactive chart figures
 def create_offline_graphs(chart):
@@ -754,109 +730,52 @@ def create_offline_graphs(chart):
         p = p + 1
     return(div_chart_fig)
 
-#########
-
-def createApp():
-    global app
-    external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
-    #app = JupyterDash('__name__')
-    config['app'] = dash.Dash(__name__, external_stylesheets=external_stylesheets)
-
-    card_style = {
-        "box-shadow": "0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12), 0 2px 4px -1px rgba(0,0,0,0.3)"
-    }
-
-    #app.scripts.config.serve_locally = True
-
-    # app.layout = dcc.Loading(
-    #     children=[html.Div(
-
-    tabs_init = []
+def createDashCharts(chart):
+    dcc_chart_fig = []
     p = 0
-    for chart in charts:
-        tabs_init.append(dcc.Tab(label=config['charts'][chart], value="".join(["tab-", str(p)]),
-                                style={'backgroundColor': '#f5f5f5'}))
-        p = p+1
+    for plot in config.config['chart_figs'][chart]:
+        if p != len(config.config['chart_figs'][chart])-1: #if not the last chart
+            height = '20vh'
+        else:
+            height = '25vh'
+        dcc_chart_fig.append(dcc.Graph(id='graph' + str(p),
+                                            figure=config.config['chart_figs'][chart][plot],
+                                            style={'width': '98vw', 'height': ''+ height + ''}))
+        p = p + 1
+    return(dcc_chart_fig)
 
-    app.layout = html.Div(className="sans-serif",
-                        children=[
-                        html.Div(
-                            className="w-60 center pt4",
-                            children=[
-                                dcc.Tabs(
-                                    id="tabs",
-                                    value="tab-0",
-                                    children=tabs_init,
-                                    colors={
-                                        "primary": "white",
-                                        "background": "white",
-                                        "border": "#d2d2d2",
-                                    },
-                                    parent_style=card_style,
-                                ),
-                                html.Div(
-                                    children=[
-                                        dcc.Loading(id='tabs-content',
-                                                    type='graph', className='pv6')
-                                    ],
-                                    className='pa4'
-                                ),
-                            ],
-                            style={},
-                        ),
-                    ],
-                )# ], type='default', fullscreen=True)
-
-    @app.callback(Output('tabs-content', 'children'),
-                [Input('tabs', 'value')])
-    def render_content(tab):
-        time.sleep(2)
-        if tab == 'tab-0':
-            return html.Div(children=[
-                # html.Label('From 1994 to 2018', id='time-range-label'),
-                html.Div(id='loading-0', children=config['dcc_chart_figs'][0])])
-        elif tab == 'tab-1':
-            return html.Div(id='loading-1', children=config['dcc_chart_figs'][1])
-        elif tab == 'tab-2':
-            return html.Div(id='loading-2', children=config['dcc_chart_figs'][2])
-        elif tab == 'tab-3':
-            return html.Div(id='loading-3', children=config['dcc_chart_figs'][3])
-
-    print("App ready: " + str(date_now))
+#########
 
 
 #########
 
 def main():
-    global config
     processArguments()
-    setIOFolder(io_dir)
+    setIOFolder(config.io_dir)
     
-    if not update: # Reimport all data
+    if not config.update: # Reimport all data
         openinfoFile()
     else: # Update existing config file data
         getConfig()
 
     dataset_data = importDatasets() # data dict per dataset
-    config['all_data'] = processAllData(dataset_data) # all data combined and averaged
+    config.config['all_data'] = processAllData(dataset_data) # all data combined and averaged
     # Create chart data
-    processChartDFs(config['all_data']) # subsetted by chart criteria, melted and plot pars
-    saveConfig()
+    processChartDFs(config.config['all_data']) # subsetted by chart criteria, melted and plot pars
+    #saveObject(config.config, 'config.pkl')
 
-    pbar = tqdm(config['charts'])
+    pbar = tqdm(config.config['charts'])
     for chart in pbar:
         pbar.set_description("Exporting chart %s" % chart)
-        config['chart_figs'][chart]  = createChartFig(chart)
-        config['div_chart_figs'][chart] = createOfflineCharts(chart)
-        exportHTML(chart)
-        exportImage(chart, 'png')
-        exportImage(chart, 'pdf')
-        config['dcc_chart_figs'][chart] = createDashCharts(chart)
+        config.config['chart_figs'][chart]  = createChartFig(chart)
+        #config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
+        #exportHTML(chart)
+        #exportImage(chart, 'png')
+        #exportImage(chart, 'pdf')
+        config.config['dcc_chart_figs'][chart] = createDashCharts(chart)
+
+    saveObject(config.config, 'config.pkl')
 
 if __name__ == "__main__":
     main()
-    createApp()
-    config['app'].run_server()
-    #debug=True, dev_tools_hot_reload_interval=5000)
-                   #dev_tools_hot_reload_max_retry=30)
 
