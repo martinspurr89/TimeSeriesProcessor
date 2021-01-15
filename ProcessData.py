@@ -97,10 +97,8 @@ def getConfig():
         config.update = False
         openinfoFile()
 
-def saveObject(object_to_save, filename):
-    temp_folder = config.io_dir / "Temp"
-    deleteFolderContents(temp_folder)
-    with open(temp_folder / filename, 'wb') as pfile:
+def saveObject(object_to_save, filepath):
+    with open(filepath, 'wb') as pfile:
         pickle.dump(object_to_save, pfile, protocol=-1)
 
 # Info file functions
@@ -196,35 +194,35 @@ def selectDatasets():
         selected_cols.append("selected_chart_" + str(chart))
         
     selected_pars_inc = config.config['info']['parameters'][selected_cols].isin([1]).any(axis=1)
-    config.config['selected_pars'] = list(config.config['info']['parameters'][selected_pars_inc]['parameter'].values)
+    selected_pars = list(config.config['info']['parameters'][selected_pars_inc]['parameter'].values)
     
     selected_pars_ave_inc = config.config['info']['parameters_ave'][selected_cols].isin([1]).any(axis=1)
-    config.config['selected_pars'] = config.config['selected_pars'] + list(config.config['info']['parameters_ave'][selected_pars_ave_inc]['parameter_ave'].values)
+    selected_pars_ave = list(config.config['info']['parameters_ave'][selected_pars_ave_inc]['parameter_ave'].values)
+
+    selected_reps = list(config.config['info']['parameters'][config.config['info']['parameters']['parameter_ave'].isin(selected_pars_ave)]['parameter'])
+
+
+    config.config['selected_pars'] = list(set(selected_pars + selected_pars_ave + selected_reps))
     selected_pars_all_inc = pd.concat([selected_pars_inc, selected_pars_ave_inc])
 
     config.config['selected_datasets'] = list(selected_pars_all_inc[selected_pars_all_inc].index.unique().values)
 
 def readFile(dataset, folder, filename):
-    file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
-    del_rows = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['Del_unit_rows'][dataset]
+    file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['file_pat'][dataset]
     
     for pat in config.config['filetypes']:
         if re.search(pat, file_pat, re.IGNORECASE):
-            df = CustomDataImports.fileImport(dataset, folder, filename, pat)
-            break
+            if dataset in CustomDataImports.import_functions:
+                df = CustomDataImports.import_functions[dataset](dataset, folder, filename, pat)
+                break
     if 'df' not in locals():
         raise ValueError("Unknown file type for " + str(dataset) + " folder " + str(folder) + " with " + filename)
 
     if len(df) > 0:
-        if dataset in CustomDataImports.import_functions:
-            df = CustomDataImports.import_functions[dataset](df)
         # Name parameter columns
         code_par_dict = dict(zip(config.config['info']['parameters'].query('dataset == "' + dataset + '"')['code'],
                                     config.config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter']))
         df = df.rename(columns=code_par_dict)
-        # Delete unit rows
-        if not pd.isna(del_rows):
-            df = df.drop(0).reset_index()
         #Choose parameters included in parameters sheet
         #config.config['selected_pars'] = list(config.config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
         df = df.drop(df.columns.difference(['DateTime'] + config.config['selected_pars']), axis=1)
@@ -235,14 +233,11 @@ def readFile(dataset, folder, filename):
             except:
                 pass
         # Add blank row between files - to be implemented
-        # if len(df) > 0:
-        #    if not pd.isna(dataset_f_info['Add_blank_rows'][dataset]):
-        #        df = df.append(pd.Series(), ignore_index=True)
-        return df
+    return df
 
 def importFiles(dataset, folder):
-    data_folder_path = Path(config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['data_folder_path'][dataset])
-    file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == "' + str(folder) + '"')['file_pat'][dataset]
+    data_folder_path = Path(config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['data_folder_path'][dataset])
+    file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['file_pat'][dataset]
     files_imported = config.config['files_imported'][dataset][folder]
     dataset_in_folder = []
     for filename in tqdm(os.listdir(data_folder_path), desc="Open files to import"):
@@ -279,11 +274,11 @@ def combineSortData(df_dict):
     
 
 def importData(dataset):
-    num_folders = len(config.config['info']['datasets'].query('dataset == "' + dataset + '"')) + 1
+    num_folders = len(config.config['info']['datasets'].query('dataset == "' + dataset + '"'))
     folder_data_list = {}
     if dataset not in config.config['files_imported']:
         config.config['files_imported'][dataset] = {}
-    for folder in range(1, num_folders):
+    for folder in range(1, num_folders + 1):
         if folder not in config.config['files_imported'][dataset]:
             config.config['files_imported'][dataset][folder] = []
         # Custom pre-import functions
@@ -297,47 +292,52 @@ def importData(dataset):
 
 def importDatasets():
     selectDatasets()
-    dataset_data = {}
     for dataset in tqdm(config.config['selected_datasets'], desc = "Import data from each dataset"):
         df = importData(dataset)
         if df is not None:
-            dataset_data[dataset] = df
-    return dataset_data
+            config.config['dataset_data'][dataset] = df
 
 def averageReps(df):
-    #with warnings.catch_warnings():
-        #warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
-        #warnings.filterwarnings('ignore', r'Degrees of freedom <= 0 for slice.')
-    ave_cols = []
-    if df is not None:
-        for col in df.columns[1:].to_list():
-            ave_col = config.config['info']['parameters'].query('parameter == "' + col + '"')['parameter_ave'][0]
-            if ave_col != col:
-                if ave_col not in ave_cols:
-                    cols = config.config['info']['parameters'].query('parameter_ave == "' + ave_col + '"')['parameter'].to_list()
-                    df[ave_col] = df[cols].mean(axis=1)
-                    if len(cols) > 2:
-                        df[ave_col + "_err"] = np.nanstd(df[cols], axis=1)
-                    elif len(cols) == 2:
-                        df[ave_col + "_err"] = np.abs((df[cols[0]] - df[cols[1]])/2)
-                    else:
-                        df[ave_col + "_err"] = 0
-                    ave_cols.append(ave_col)
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', r'All-NaN (slice|axis) encountered')
+        warnings.filterwarnings('ignore', r'Degrees of freedom <= 0 for slice.')
+        ave_cols = []
+        if df is not None:
+            for col in df.columns[1:].to_list():
+                ave_col = config.config['info']['parameters'].query('parameter == "' + col + '"')['parameter_ave'][0]
+                if ave_col != col:
+                    if ave_col not in ave_cols:
+                        cols = config.config['info']['parameters'].query('parameter_ave == "' + ave_col + '"')['parameter'].to_list()
+                        
+                        df[ave_col] = df[cols].mean(axis=1)
+                        if len(cols) > 2:
+                            df[ave_col + "_err"] = np.nanstd(df[cols], axis=1)
+                        elif len(cols) == 2:
+                            df[ave_col + "_err"] = np.abs((df[cols[0]] - df[cols[1]])/2)
+                        else:
+                            df[ave_col + "_err"] = 0
+                        ave_cols.append(ave_col)
 
-        err_pars = [ave_col + "_err" for ave_col in ave_cols]
-        chosen_pars = config.config['selected_pars'] + err_pars
-        chosen_pars = [par for par in chosen_pars if par in df.columns]
+            err_pars = [ave_col + "_err" for ave_col in ave_cols]
+            chosen_pars = config.config['selected_pars'] + err_pars
+            chosen_pars = [par for par in chosen_pars if par in df.columns]
 
-        df = df[["DateTime"]+ chosen_pars]
-        return df
+            df = df[["DateTime"]+ chosen_pars]
+            return df
 
-def processAllData(df_dict):
-    df = combineSortData(df_dict)
+def processAllData():
+    df = combineSortData(config.config['dataset_data'])
     df = averageReps(df)
 
     if config.update:
         all_dict = {'all': config.config['all_data'], 'new': df}
         df = combineSortData(all_dict)
+
+    #Sort columns
+    df = df.reindex(sorted(df.columns), axis=1)
+    cols = list(df)
+    cols.insert(0, cols.pop(cols.index('DateTime')))
+    df = df.loc[:, cols]
 
     return df
 
@@ -373,18 +373,19 @@ def meltData(chart):
             err_cols.append(col)
 
     df = wide_data[data_cols].melt(id_vars=['DateTime'], var_name='Parameter', value_name='Value')
-    df_err = wide_data[err_cols].melt(id_vars=['DateTime'], var_name='Parameter', value_name='Error')
-    df_err['Parameter'] = df_err['Parameter'].str.replace(r'_err', '')
-
     df = df.set_index(['DateTime', 'Parameter', df.groupby(['DateTime', 'Parameter']).cumcount()])
-    df_err = df_err.set_index(['DateTime', 'Parameter', df_err.groupby(['DateTime', 'Parameter']).cumcount()])
 
-    df3 = (pd.concat([df, df_err], axis=1)
-            .sort_index(level=2)
-            .reset_index(level=2, drop=True)
-            .reset_index())
+    try:
+        df_err = wide_data[err_cols].melt(id_vars=['DateTime'], var_name='Parameter', value_name='Error')
+        df_err['Parameter'] = df_err['Parameter'].str.replace(r'_err', '')
+        df_err = df_err.set_index(['DateTime', 'Parameter', df_err.groupby(['DateTime', 'Parameter']).cumcount()])
+        df3 = pd.concat([df, df_err], axis=1)
+    except:
+        df3 = df
+        df3["Error"] = np.nan
+
+    df3 = df3.sort_index(level=2).reset_index(level=2, drop=True).reset_index()
     df3.sort_values(by=['DateTime', 'Parameter'], inplace=True)
-
 
     df3.drop(df3[df3['Parameter'].isin(config.config['par_style_dict']['point']) & np.isnan(df3['Value'])].index, inplace=True)
     df3.drop(df3[df3['Parameter'].isin(config.config['par_style_dict']['bar']) & np.isnan(df3['Value'])].index, inplace=True)
@@ -435,11 +436,11 @@ def addTrace(par, plot_fig, chart):
 
     def addLine(plot_fig):
         legend_show = True #default on
-        if par_info['show_in_legend'].values == False or par_info['point'].values == True or par_info['bar'].values == True:
+        if any(par_info['show_in_legend'].values == False) or any(par_info['point'].values == True) or any(par_info['bar'].values == True):
             legend_show = False
         trace = trace_base
         trace.update(mode = "lines",
-                    line=dict(color=par_info['colour'][0], width=2, dash=par_info['dash'][0]),
+                    line=dict(color=par_info['colour'][0], width=2, dash=par_info['dash'][0], shape=par_info['line'][0]),
                     connectgaps=False,
                     showlegend=legend_show)
         plot_fig.add_trace(trace)
@@ -482,13 +483,13 @@ def addTrace(par, plot_fig, chart):
                     name=par_info['parameter_lab'][0], 
                     legendgroup=par_info['parameter_lab'][0])
 
-        if par_info['line'].values == True:
+        if not any(pd.isna(par_info['line'].values)):
             plot_fig = addLine(plot_fig)
 
-        if par_info['point'].values == True:
+        if any(par_info['point'].values == True):
             plot_fig = addPoints(plot_fig)
 
-        if par_info['ribbon'].values == True:
+        if any(par_info['ribbon'].values == True):
             plot_fig = addRibbon(plot_fig)
     return(plot_fig)
 
@@ -758,23 +759,29 @@ def main():
     else: # Update existing config file data
         getConfig()
 
-    dataset_data = importDatasets() # data dict per dataset
-    config.config['all_data'] = processAllData(dataset_data) # all data combined and averaged
+    importDatasets() # data dict per dataset
+    config.config['all_data'] = processAllData() # all data combined and averaged
     # Create chart data
     processChartDFs(config.config['all_data']) # subsetted by chart criteria, melted and plot pars
-    #saveObject(config.config, 'config.pkl')
+    #saveObject(config.config, (config.io_dir / 'Output' / 'data.pkl'))
+
+    all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
+    all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')
 
     pbar = tqdm(config.config['charts'])
     for chart in pbar:
         pbar.set_description("Exporting chart %s" % chart)
         config.config['chart_figs'][chart]  = createChartFig(chart)
-        #config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
-        #exportHTML(chart)
-        #exportImage(chart, 'png')
-        #exportImage(chart, 'pdf')
+        if config.config['info']['charts'].loc[chart, 'html_on'] == "ON":
+            config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
+            exportHTML(chart)
+        if config.config['info']['charts'].loc[chart, 'png_on'] == "ON":
+            exportImage(chart, 'png')
+        if config.config['info']['charts'].loc[chart, 'pdf_on'] == "ON":
+            exportImage(chart, 'pdf')
         config.config['dcc_chart_figs'][chart] = createDashCharts(chart)
 
-    saveObject(config.config, 'config.pkl')
+    #saveObject(config.config, (config.io_dir / 'Temp' / 'config.pkl'))
 
 if __name__ == "__main__":
     main()

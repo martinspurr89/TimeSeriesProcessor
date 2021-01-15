@@ -26,16 +26,16 @@
 				"program": "${file}",
 				"console": "integratedTerminal",
 				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe",
-				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Helix_BES_BEWISE", "--update"]
+				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Rod_BES_BEWISE", "--update"]
 			},
 			{
-				"name": "No_Update",
+				"name": "Get_all",
 				"type": "python",
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
 				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe",
-				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Helix_BES_BEWISE"]
+				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Rod_BES_BEWISE"]
 			},
 			{
 				"name": "Debug Tests",
