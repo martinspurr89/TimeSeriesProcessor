@@ -760,6 +760,10 @@ def main():
         getConfig()
 
     importDatasets() # data dict per dataset
+    
+    print(config.config)
+
+
     config.config['all_data'] = processAllData() # all data combined and averaged
     # Create chart data
     processChartDFs(config.config['all_data']) # subsetted by chart criteria, melted and plot pars
