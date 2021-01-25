@@ -20,6 +20,7 @@ config['selected_pars'] = []
 config['selected_datasets'] = []
 config['dataset_data'] = {}
 config['all_data'] = None
+config['bar_dfs'] = {}
 config['chart_dfs'] = {}
 config['par_plot_dict'] = {}
 config['filetypes'] = []

@@ -13,6 +13,7 @@ import numpy as np
 import pickle
 import shutil
 import plotly.graph_objects as go
+import plotly.express as px
 import plotly.offline.offline
 import math
 import humanize
@@ -327,6 +328,11 @@ def averageReps(df):
 
 def processAllData():
     df = combineSortData(config.config['dataset_data'])
+    createBarDF()
+
+    if "mod_post_import_data" in dir(CustomDataImports):
+        df = CustomDataImports.mod_post_import_data(df)
+
     df = averageReps(df)
 
     if config.update:
@@ -417,6 +423,43 @@ def chartPlotDicts(chart):
 
     config.config['plot_pars'][chart] = par_info_all
 
+def createBarDF():
+        df = createBarGantt(pd.concat(config.config['bar_dfs'], ignore_index=True))
+        config.config['bar_df_all'] = df
+
+def createBarGantt(matchdf):
+    pars = matchdf.columns.drop('DateTime').to_list()
+    bar_gantts = {}
+    for par in pars:
+        bar_df = matchdf[['DateTime', par]].dropna(thresh=2).sort_values('DateTime').reset_index(drop=True)
+        ons = pd.DataFrame(columns = ['ON'])
+        offs = pd.DataFrame(columns = ['OFF'])
+        for ind, row in bar_df.iterrows():
+            if ind == 0:
+                if row[par] == 1:
+                    ons = ons.append({'ON': row['DateTime']}, ignore_index=True)
+                    flag = 1
+                else:
+                    ons = ons.append({'ON': config.config['date_start']}, ignore_index=True)
+                    offs = offs.append({'OFF': row['DateTime']}, ignore_index=True)
+                    flag = 0
+            else:
+                if row[par] != flag:
+                    if row[par] == 1:
+                        ons = ons.append({'ON': row['DateTime']}, ignore_index=True)
+                        flag = 1
+                    else:
+                        offs = offs.append({'OFF': row['DateTime']}, ignore_index=True)
+                        flag = 0
+                    if ind == len(bar_df)-1:
+                        if row[par] == 1:
+                            offs = offs.append({'OFF': config.config['date_end']}, ignore_index=True)
+                            flag = 0
+                            
+        bar_gantts[par] = pd.DataFrame({"Parameter": par, "ON": ons['ON'], "OFF": offs['OFF']})
+    bar_gantt = pd.concat(bar_gantts, ignore_index=True)
+    return(bar_gantt)
+
 def processChartDFs(chart):
     for chart in config.config['charts'].copy():
         createChartDFs(chart)
@@ -473,6 +516,20 @@ def addTrace(par, plot_fig, chart):
         plot_fig.add_trace(trace2)
         return(plot_fig)
 
+    def addBars(plot_fig):
+        trace = px.timeline(config.config['bar_df_all'].query('Parameter == "{0}"'.format(par_info['parameter'][0])), x_start="ON", x_end="OFF", y="Parameter")
+        trace.data[0].update(marker = dict(color = par_info['fill'][0],
+                                line = dict(color = par_info['colour'][0],width=1)),
+                    showlegend = bool(par_info['show_in_legend'][0]),
+                    name=par_info['parameter_lab'][0], 
+                    legendgroup=par_info['parameter_lab'][0])
+        if len(plot_fig.data) == 0:
+            plot_fig = trace
+            plot_fig.update_yaxes(autorange="reversed") # otherwise tasks are listed from the bottom up
+        else:
+            plot_fig.add_trace(trace.data[0])
+        return(plot_fig)
+
     if len(par_info) != 0:
         par_data = config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == par]
         x_data = par_data.DateTime
@@ -491,6 +548,9 @@ def addTrace(par, plot_fig, chart):
 
         if any(par_info['ribbon'].values == True):
             plot_fig = addRibbon(plot_fig)
+
+        if any(par_info['bar'].values == True):
+            plot_fig = addBars(plot_fig)
     return(plot_fig)
 
 def modifyPlot(plot_fig, plot, chart):
@@ -761,9 +821,6 @@ def main():
 
     importDatasets() # data dict per dataset
     
-    print(config.config)
-
-
     config.config['all_data'] = processAllData() # all data combined and averaged
     # Create chart data
     processChartDFs(config.config['all_data']) # subsetted by chart criteria, melted and plot pars
@@ -771,6 +828,7 @@ def main():
 
     all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')
+    config.config['bar_df_all'].to_csv(config.io_dir / 'Output' / 'bar_df_all.csv')
 
     pbar = tqdm(config.config['charts'])
     for chart in pbar:
