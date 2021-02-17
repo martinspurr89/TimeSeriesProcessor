@@ -419,11 +419,12 @@ def chartPlotDicts(chart):
     par_info_all['dash'].fillna("solid", inplace=True)
     par_info_all['show_in_legend'].fillna(True, inplace=True)
 
-    par_info_all.loc[par_info_all['ribbon'] == True, 'fill'] = par_info_all.loc[par_info_all['ribbon'] == True, 'fill'].str.replace(",1\)", ",0.25)")
+    par_info_all.loc[par_info_all['ribbon'] == True, 'fill'] = par_info_all.loc[par_info_all['ribbon'] == True, 'fill'].str.replace(",1\)", ",0.25)", regex=True) # still work with Regex default?
 
     config.config['plot_pars'][chart] = par_info_all
 
 def createBarDF():
+    if len(config.config['bar_dfs']) > 0:
         df = createBarGantt(pd.concat(config.config['bar_dfs'], ignore_index=True))
         config.config['bar_df_all'] = df
 
@@ -828,7 +829,8 @@ def main():
 
     all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')
-    config.config['bar_df_all'].to_csv(config.io_dir / 'Output' / 'bar_df_all.csv')
+    if len(config.config['bar_df_all']) > 0:
+        config.config['bar_df_all'].to_csv(config.io_dir / 'Output' / 'bar_df_all.csv')
 
     pbar = tqdm(config.config['charts'])
     for chart in pbar:
@@ -843,7 +845,9 @@ def main():
             exportImage(chart, 'pdf')
         config.config['dcc_chart_figs'][chart] = createDashCharts(chart)
 
-    #saveObject(config.config, (config.io_dir / 'Temp' / 'config.pkl'))
+    # # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pkl'))
+    export_config = {k: config.config[k] for k in ['charts', 'info', 'date_end', 'date_start', 'chart_dfs_mlt', 'dcc_chart_figs'] if k in config.config}
+    saveObject(export_config, (config.io_dir / 'Output' / 'sub_config.pkl'))
 
 if __name__ == "__main__":
     main()
