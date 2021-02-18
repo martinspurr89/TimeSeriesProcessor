@@ -328,7 +328,7 @@ def averageReps(df):
 
 def processAllData():
     df = combineSortData(config.config['dataset_data'])
-    createBarDF()
+    #createBarDF()
 
     if "mod_post_import_data" in dir(CustomDataImports):
         df = CustomDataImports.mod_post_import_data(df)
@@ -569,7 +569,7 @@ def modifyPlot(plot_fig, plot, chart):
     plot_fig.update_xaxes(showgrid=True, showticklabels=False, ticks="",
         showline=True, mirror=True,
         range=[min(config.config['chart_dfs_mlt'][chart].DateTime), max(config.config['chart_dfs_mlt'][chart].DateTime)],
-        )#fixedrange=True) #prevent x zoom
+        fixedrange=True) #prevent x zoom
     return(plot_fig)
 
 def getYMin(plot, chart):
@@ -825,7 +825,7 @@ def main():
     config.config['all_data'] = processAllData() # all data combined and averaged
     # Create chart data
     processChartDFs(config.config['all_data']) # subsetted by chart criteria, melted and plot pars
-    #saveObject(config.config, (config.io_dir / 'Output' / 'data.pkl'))
+    saveObject(config.config, (config.io_dir / 'Output' / 'data.pkl'))
 
     all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')

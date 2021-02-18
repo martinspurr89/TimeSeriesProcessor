@@ -70,16 +70,20 @@ def unixToDatetime(unix):
     ''' Convert unix timestamp to datetime. '''
     return pd.to_datetime(unix,unit='s')
 
-def getMarks(start, end):
+def getMarks(start, end, periods):
     ''' Returns the marks for labeling. 
         Every Nth value will be used.
     '''
-    daterange = pd.date_range(start=start,end=end,periods=4)
+    daterange = pd.date_range(start=start,end=end,periods=periods)
     result = {}
     for i, date in enumerate(daterange):
         # Append value to dict
         result[unixTimeMillis(date)] = str(date.strftime('%Y-%m-%d'))
     return result
+
+def rangeString(start, end):
+    return '{} ⬌ {}'.format(unixToDatetime(start).strftime("%d/%m/%Y %H:%M"),
+                                  unixToDatetime(end).strftime("%d/%m/%Y %H:%M"))
 
 chart = min(config.config['charts'])
 start = min(config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == config.config['chart_dfs_mlt'][chart].Parameter.unique()[1]].DateTime)
@@ -87,6 +91,8 @@ end = max(config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][c
 
 dates_ = config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == config.config['chart_dfs_mlt'][chart].Parameter.unique()[1]].DateTime
 ###
+
+##APP##
 
 app.layout = html.Div(children=[
     #html.Div([html.Img(src=app.get_asset_url('ToOL-PRO-BES.png'), style={'width':'90%', 'max-width': '100%'})], style={'textAlign': 'center'}),
@@ -96,16 +102,35 @@ app.layout = html.Div(children=[
         dcc.Tabs(id="tabs",
             value="tab-0",
             children=tabs_init),
-        html.Label('{} --- {}'.format(start.strftime("%d/%m/%Y %H:%M"), end.strftime("%d/%m/%Y %H:%M")), id='time-range-label'),
         html.Div(children=[
-            dcc.Loading(id='slider-content'),
-        ]),
+            html.Div(children=[
+                dcc.Loading(id='slider-content'),
+            ]),
+            html.Div(children=[
+                dcc.Loading(id='plot_chooser-content'),
+            ], className="eight columns"),
+            html.Div(children=[
+                html.I("Plot height: "),
+                dcc.Input(
+                    id="height_set", type="number", placeholder="Height set input",
+                    min=1, max=50, step=1,
+                    value=25,
+                    style={'width':'50%'}
+                ), html.I("%")
+            ], className="two columns"),
+            html.Div(children=
+                html.Button('Submit', id='submit-val', n_clicks=0),
+                className="one columns"),
+            html.Br(), html.Br(), html.Br()]),
         html.Div(children=[
-            dcc.Loading(id='tabs-content'),
+            dcc.Loading(id='chart-content'),
         ]),
     ]),
 ])
 
+##CALLBACKS##
+
+#SLIDER
 @app.callback(
     Output('slider-content', 'children'),
     [Input('tabs', 'value')])
@@ -114,7 +139,7 @@ def update_slider(tab):
     start = min(config.config['chart_dfs_mlt'][tab_ids[tab]][config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter == config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter.unique()[1]].DateTime)
     end = max(config.config['chart_dfs_mlt'][tab_ids[tab]][config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter == config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter.unique()[1]].DateTime)
 
-    content = [html.Label('{} --- {}'.format(start.strftime("%d/%m/%Y %H:%M"), end.strftime("%d/%m/%Y %H:%M")), id='time-range-label')]
+    content = [html.Label(rangeString(start, end), id='time-range-label')]
     content.append(html.Div(id='loading', children=
         dcc.RangeSlider(
             id='date_slider',
@@ -124,32 +149,67 @@ def update_slider(tab):
             count=1,
             step=60000,
             value=[unixTimeMillis(start), unixTimeMillis(end)],
-            marks=getMarks(start, end)),
+            marks=getMarks(start, end, 8)),
     ))
     return content
 
+#TIME RANGE
 @app.callback(
     Output('time-range-label', 'children'),
     [Input('date_slider', 'value')])
-def _update_time_range_label(value):
-    return '{} --- {}'.format(unixToDatetime(dates_selected[0]).strftime("%d/%m/%Y %H:%M"),
-                                  unixToDatetime(dates_selected[1]).strftime("%d/%m/%Y %H:%M"))
+def _update_time_range_label(dates_selected):
+    return rangeString(dates_selected[0], dates_selected[1])
 
-@app.callback(Output('tabs-content', 'children'),
-            [Input('tabs', 'value'), Input('date_slider','value')])
-def render_content(tab, dates_selected):
-    #time.sleep(2)
+#PLOT CHOOSER
+@app.callback(
+    Output('plot_chooser-content', 'children'),
+    [Input('tabs', 'value')])
+def update_plot_chooser(tab):
+    plots = {}
+    for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
+        plots[plot.id] = plot.figure.layout.yaxis.title.text
+
+    content = [html.Div(html.Label('Select plots:', id='plot_chooser-label'),
+            className="one columns")]
+    content.append(html.Div(id='loading2', children=
+        dcc.Checklist(
+            id='plot_chooser',
+            options=[{'label':plots[plot], 'value':plot} for plot in plots],
+            value=list(plots.keys()),
+            labelStyle={'display': 'inline-block'}
+        ), className="eleven columns")
+    )
+    return content
+
+#CHART
+@app.callback(Output('chart-content', 'children'),
+            [Input('submit-val', 'n_clicks'), Input('tabs', 'value')],
+            [State('tabs', 'value'), State('date_slider','value'), State('plot_chooser', 'value'), State('height_set', 'value')])
+def render_content(n_clicks, tab_click, tab, dates_selected, plots, height):
+    time.sleep(2)
     content = []
-    for plot in range(0,len(config.config['dcc_chart_figs'][tab_ids[tab]])):
-        config.config['dcc_chart_figs'][tab_ids[tab]][plot].figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])])
-        content.append(html.Div(id='loading', children=config.config['dcc_chart_figs'][tab_ids[tab]][plot]))
+    for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
+        if plot.id in plots:
+            plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])])
+            plot.style['height'] = str(height) + 'vh'
+            if plot.id == plots[len(plots)-1]:
+                plot.figure.update_xaxes(showticklabels=True, ticks="outside")
+                plot.style['height'] = str(height + 5) + 'vh'
+            content.append(html.Div(id='loading', children=plot))
     return html.Div(id='loading', children=content)
 
 
 print("App ready: " + str(config.config['date_end']))
 
+port = 8050 # or simply open on the default `8050` port
+
+import webbrowser
+from threading import Timer
+def open_browser():
+	webbrowser.open_new("http://localhost:{}".format(port))
 
 if __name__ == '__main__':
-    app.run_server()
+    Timer(1, open_browser).start()
+    app.run_server(port=port)
 
 ####
