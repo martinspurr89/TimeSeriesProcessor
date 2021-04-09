@@ -17,6 +17,7 @@ config['charts'] = {}
 config['files_imported'] = {}
 config['supporting_data_dict'] = {}
 config['selected_pars'] = []
+config['bar_pars'] = []
 config['selected_datasets'] = []
 config['dataset_data'] = {}
 config['all_data'] = None

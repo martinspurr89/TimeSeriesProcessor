@@ -14,6 +14,7 @@ import base64
 import humanize
 import pandas as pd
 from datetime import datetime, timedelta
+import re
 
 import config
 import ProcessData
@@ -27,8 +28,9 @@ def getConfigCharts():
         for key in list(items.keys()):
             config.config[key] = items[key]
     else:
-        print("No pickled config.pkl data file exists - processing data!")
+        print("Fetching all data (or no pickled sub_config.pkl file exists)")
         ProcessData.main()
+        config.update = True
         getConfigCharts()
 
 ProcessData.processArguments()
@@ -114,7 +116,7 @@ app.layout = html.Div(children=[
                 dcc.Input(
                     id="height_set", type="number", placeholder="Height set input",
                     min=1, max=50, step=1,
-                    value=25,
+                    value=20,
                     style={'width':'50%'}
                 ), html.I("%")
             ], className="two columns"),
@@ -167,7 +169,7 @@ def _update_time_range_label(dates_selected):
 def update_plot_chooser(tab):
     plots = {}
     for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
-        plots[plot.id] = plot.figure.layout.yaxis.title.text
+        plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
 
     content = [html.Div(html.Label('Select plots:', id='plot_chooser-label'),
             className="one columns")]
@@ -186,11 +188,11 @@ def update_plot_chooser(tab):
             [Input('submit-val', 'n_clicks'), Input('tabs', 'value')],
             [State('tabs', 'value'), State('date_slider','value'), State('plot_chooser', 'value'), State('height_set', 'value')])
 def render_content(n_clicks, tab_click, tab, dates_selected, plots, height):
-    time.sleep(2)
+    #time.sleep(2)
     content = []
     for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
         if plot.id in plots:
-            plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])])
+            plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=True)
             plot.style['height'] = str(height) + 'vh'
             if plot.id == plots[len(plots)-1]:
                 plot.figure.update_xaxes(showticklabels=True, ticks="outside")

@@ -202,6 +202,7 @@ def selectDatasets():
 
     selected_reps = list(config.config['info']['parameters'][config.config['info']['parameters']['parameter_ave'].isin(selected_pars_ave)]['parameter'])
 
+    config.config['bar_pars'] = config.config['info']['parameters'][selected_pars_inc & config.config['info']['parameters']['bar'] == True]['parameter'].to_list() + config.config['info']['parameters_ave'][selected_pars_ave_inc & config.config['info']['parameters_ave']['bar'] == True]['parameter_ave'].to_list()
 
     config.config['selected_pars'] = list(set(selected_pars + selected_pars_ave + selected_reps))
     selected_pars_all_inc = pd.concat([selected_pars_inc, selected_pars_ave_inc])
@@ -223,7 +224,16 @@ def readFile(dataset, folder, filename):
         # Name parameter columns
         code_par_dict = dict(zip(config.config['info']['parameters'].query('dataset == "' + dataset + '"')['code'],
                                     config.config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter']))
-        df = df.rename(columns=code_par_dict)
+
+        if len(code_par_dict.values()) == len(set(code_par_dict.values())): # check for duplicate values to set
+            df = df.rename(columns=code_par_dict) ## Could duplicate column names
+        else:
+            df = df.reset_index(drop=True).reset_index()
+            df = pd.melt(df, id_vars=['index', 'DateTime'])
+            df = df.replace({'variable': code_par_dict})
+            df = df.reset_index().pivot(index=['level_0','DateTime'], columns='variable', values='value').reset_index().drop('level_0', axis=1) # Safe rename to avoid duplicate columns
+            df.columns.name = None
+
         #Choose parameters included in parameters sheet
         #config.config['selected_pars'] = list(config.config['info']['parameters'].query('dataset == "' + dataset + '"')['parameter'].values)
         df = df.drop(df.columns.difference(['DateTime'] + config.config['selected_pars']), axis=1)
@@ -419,7 +429,8 @@ def chartPlotDicts(chart):
     par_info_all['dash'].fillna("solid", inplace=True)
     par_info_all['show_in_legend'].fillna(True, inplace=True)
 
-    par_info_all.loc[par_info_all['ribbon'] == True, 'fill'] = par_info_all.loc[par_info_all['ribbon'] == True, 'fill'].str.replace(",1\)", ",0.25)", regex=True) # still work with Regex default?
+    par_info_all.loc[par_info_all['ribbon'] == True, 'fill'] = par_info_all.loc[par_info_all['ribbon'] == True, 'fill'].str.replace(",1\)", ",0.25)", regex=True)
+    par_info_all.loc[par_info_all['bar'] == True, 'fill'] = par_info_all.loc[par_info_all['bar'] == True, 'fill'].str.replace(",1\)", ",0.75)", regex=True)
 
     config.config['plot_pars'][chart] = par_info_all
 
@@ -516,20 +527,38 @@ def addTrace(par, plot_fig, chart):
                     line=dict(width=0.5)) #fill to trace1 y
         plot_fig.add_trace(trace2)
         return(plot_fig)
-
+    
     def addBars(plot_fig):
-        trace = px.timeline(config.config['bar_df_all'].query('Parameter == "{0}"'.format(par_info['parameter'][0])), x_start="ON", x_end="OFF", y="Parameter")
-        trace.data[0].update(marker = dict(color = par_info['fill'][0],
-                                line = dict(color = par_info['colour'][0],width=1)),
-                    showlegend = bool(par_info['show_in_legend'][0]),
-                    name=par_info['parameter_lab'][0], 
-                    legendgroup=par_info['parameter_lab'][0])
-        if len(plot_fig.data) == 0:
-            plot_fig = trace
-            plot_fig.update_yaxes(autorange="reversed") # otherwise tasks are listed from the bottom up
-        else:
-            plot_fig.add_trace(trace.data[0])
+        bar_base = go.Scatter(x=x_data,
+                                name=par_info['parameter_lab'][0],
+                                line=dict(color=par_info['colour'][0], dash = 'dot'),
+                                connectgaps=True,
+                                legendgroup=par_info['parameter_lab'][0],
+                                showlegend=False,
+                                hoverinfo='skip')
+        trace1 = bar_base
+        trace1.update(y=par_info['bar_order'][0] + y_data.round()/2, mode='lines', line=dict(width=0), line_shape = "hv")
+        plot_fig.add_trace(trace1)
+        trace2 = bar_base
+        trace2.update(y=par_info['bar_order'][0] - y_data.round()/2, fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
+                    line=dict(width=0.5), line_shape = "hv", showlegend=True, hoverinfo='all') #fill to trace1 y
+        plot_fig.add_trace(trace2)
+
         return(plot_fig)
+
+    # def addBars(plot_fig):
+    #     trace = px.timeline(config.config['bar_df_all'].query('Parameter == "{0}"'.format(par_info['parameter'][0])), x_start="ON", x_end="OFF", y="Parameter")
+    #     trace.data[0].update(marker = dict(color = par_info['fill'][0],
+    #                             line = dict(color = par_info['colour'][0],width=1)),
+    #                 showlegend = bool(par_info['show_in_legend'][0]),
+    #                 name=par_info['parameter_lab'][0], 
+    #                 legendgroup=par_info['parameter_lab'][0])
+    #     if len(plot_fig.data) == 0:
+    #         plot_fig = trace
+    #         plot_fig.update_yaxes(autorange="reversed") # otherwise tasks are listed from the bottom up
+    #     else:
+    #         plot_fig.add_trace(trace.data[0])
+    #     return(plot_fig)
 
     if len(par_info) != 0:
         par_data = config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == par]
@@ -568,8 +597,8 @@ def modifyPlot(plot_fig, plot, chart):
     plot_fig.update_yaxes(title_text=plot_info['ylab'][chart], mirror=True)
     plot_fig.update_xaxes(showgrid=True, showticklabels=False, ticks="",
         showline=True, mirror=True,
-        range=[min(config.config['chart_dfs_mlt'][chart].DateTime), max(config.config['chart_dfs_mlt'][chart].DateTime)],
-        fixedrange=True) #prevent x zoom
+        range=[min(config.config['chart_dfs_mlt'][chart].DateTime), max(config.config['chart_dfs_mlt'][chart].DateTime)])
+        #fixedrange=True) #prevent x zoom
     return(plot_fig)
 
 def getYMin(plot, chart):
@@ -577,11 +606,13 @@ def getYMin(plot, chart):
     plot_data = config.config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
     if pd.isna(plot_info['ymin'][chart]):
         ymin = min(plot_data['Value'] - plot_data['Error'].fillna(0))
-        if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+        if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['point']):
             if ymin > 0:
                 ymin = 0.95 * ymin
             else:
                 ymin = 1.05 * ymin
+        elif any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+            ymin = min(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar_order']) - 1
     else:
         ymin = plot_info['ymin'][chart]
     return(ymin)
@@ -591,11 +622,13 @@ def getYMax(plot, chart):
     plot_data = config.config['chart_dfs_mlt'][chart].query('Plot == "' + plot + '"')
     if pd.isna(plot_info['ymax'][chart]):
         ymax = max(plot_data['Value'] + plot_data['Error'].fillna(0))
-        if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['point']) + any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+        if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['point']):
             if ymax > 0:
                 ymax = 1.05 * ymax
             else:
                 ymax = 0.95 * ymax
+        elif any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar']) > 0:
+            ymax = max(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar_order']) + 1
     else:
         ymax = plot_info['ymax'][chart]
     return(ymax)
@@ -609,6 +642,20 @@ def setAxisRange(plot_fig, plot, chart):
         plot_fig.update_yaxes(range=[math.log(ymin, 10), math.log(ymax, 10)])
     else:
         plot_fig.update_yaxes(range=[ymin, ymax])
+
+    if any(config.config['plot_pars'][chart].query('plot == "' + plot + '"')['bar'].values == True):
+        bar_dict = config.config['plot_pars'][chart].query('plot == "' + plot + '"').set_index('bar_order')['parameter_lab'].to_dict()
+        tickvals_list = list(range(int(ymin)+1, int(ymax), 1))
+        ticktext_list = [bar_dict[k] for k in tickvals_list if k in bar_dict]
+        plot_fig.update_layout(
+                yaxis = dict(
+                    tickmode = 'array',
+                    tickvals = tickvals_list,
+                    ticktext = ticktext_list
+                )
+            )
+        plot_fig.update_yaxes(ticklabelposition="inside", ticks="inside")
+
     return(plot_fig)
 
 def createPlotFig(plot, chart):    
@@ -829,8 +876,8 @@ def main():
 
     all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')
-    if len(config.config['bar_df_all']) > 0:
-        config.config['bar_df_all'].to_csv(config.io_dir / 'Output' / 'bar_df_all.csv')
+    #if len(config.config['bar_df_all']) > 0:
+    #    config.config['bar_df_all'].to_csv(config.io_dir / 'Output' / 'bar_df_all.csv')
 
     pbar = tqdm(config.config['charts'])
     for chart in pbar:
