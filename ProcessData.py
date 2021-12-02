@@ -64,6 +64,7 @@ def setIOFolder(folder):
     sys.path.append(str(scripts_dir))
     global CustomDataImports
     CustomDataImports = __import__('CustomDataImports', globals(), locals())
+    checkFolderExists(config.io_dir / "Output")
 
 def deleteFolderContents(folder):
     if not os.path.exists(folder):
@@ -734,7 +735,6 @@ def exportHTML(chart):
     #write finished html
     html_string + html_string_end
     html_filename = str(chart) + "_" + config.config['charts'][chart] + ".html"
-    checkFolderExists(config.io_dir / "Output")
     hreport = open(config.io_dir / "Output" / html_filename,'w')
     hreport.write(html_string)
     hreport.close()
@@ -872,7 +872,7 @@ def main():
     config.config['all_data'] = processAllData() # all data combined and averaged
     # Create chart data
     processChartDFs(config.config['all_data']) # subsetted by chart criteria, melted and plot pars
-    saveObject(config.config, (config.io_dir / 'Output' / 'data.pkl'))
+    #saveObject(config.config, (config.io_dir / 'Output' / 'data.pkl'))
 
     all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')

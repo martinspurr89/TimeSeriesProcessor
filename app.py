@@ -33,6 +33,9 @@ def getConfigCharts():
         config.update = True
         getConfigCharts()
 
+begin = datetime.now(timezone('UTC')).replace(microsecond=0)
+print("Starting processing at: " + str(begin))
+
 ProcessData.processArguments()
 getConfigCharts()
 print("Config imported!")
@@ -88,10 +91,10 @@ def rangeString(start, end):
                                   unixToDatetime(end).strftime("%d/%m/%Y %H:%M"))
 
 chart = min(config.config['charts'])
-start = min(config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == config.config['chart_dfs_mlt'][chart].Parameter.unique()[1]].DateTime)
-end = max(config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == config.config['chart_dfs_mlt'][chart].Parameter.unique()[1]].DateTime)
+start = min(config.config['chart_dfs_mlt'][chart].DateTime)
+end = max(config.config['chart_dfs_mlt'][chart].DateTime)
 
-dates_ = config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == config.config['chart_dfs_mlt'][chart].Parameter.unique()[1]].DateTime
+#dates_ = config.config['chart_dfs_mlt'][chart].DateTime
 ###
 
 ##APP##
@@ -138,8 +141,8 @@ app.layout = html.Div(children=[
     [Input('tabs', 'value')])
 def update_slider(tab):
 
-    start = min(config.config['chart_dfs_mlt'][tab_ids[tab]][config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter == config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter.unique()[1]].DateTime)
-    end = max(config.config['chart_dfs_mlt'][tab_ids[tab]][config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter == config.config['chart_dfs_mlt'][tab_ids[tab]].Parameter.unique()[1]].DateTime)
+    start = min(config.config['chart_dfs_mlt'][tab_ids[tab]].DateTime)
+    end = max(config.config['chart_dfs_mlt'][tab_ids[tab]].DateTime)
 
     content = [html.Label(rangeString(start, end), id='time-range-label')]
     content.append(html.Div(id='loading', children=
@@ -190,6 +193,8 @@ def update_plot_chooser(tab):
 def render_content(n_clicks, tab_click, tab, dates_selected, plots, height):
     #time.sleep(2)
     content = []
+    plots.sort() #sort alpha
+    plots.sort(key=len) #sort by length (graph10+)
     for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
         if plot.id in plots:
             plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=True)
@@ -201,7 +206,8 @@ def render_content(n_clicks, tab_click, tab, dates_selected, plots, height):
     return html.Div(id='loading', children=content)
 
 
-print("App ready: " + str(config.config['date_end']))
+finish = datetime.now(timezone('UTC')).replace(microsecond=0)
+print("App ready at: " + str(finish) + " (" + str(finish - begin) + ")")
 
 port = 8050 # or simply open on the default `8050` port
 
