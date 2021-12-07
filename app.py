@@ -5,8 +5,8 @@ from pathlib import Path
 import pickle
 
 import dash
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import html
+from dash import dcc
 from dash.dependencies import Input, Output, State
 import time
 from pytz import timezone, utc
@@ -15,6 +15,7 @@ import humanize
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+from plotly_resampler import FigureResampler
 
 import config
 import ProcessData
@@ -73,7 +74,7 @@ def unixTimeMillis(dt):
 
 def unixToDatetime(unix):
     ''' Convert unix timestamp to datetime. '''
-    return pd.to_datetime(unix,unit='s')
+    return pd.to_datetime(unix,unit='s',utc=True)
 
 def getMarks(start, end, periods):
     ''' Returns the marks for labeling. 
