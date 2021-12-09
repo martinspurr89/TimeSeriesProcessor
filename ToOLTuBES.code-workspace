@@ -26,7 +26,7 @@
 				"program": "${file}",
 				"console": "integratedTerminal",
 				"pythonPath": "C:/Program Files/Python37/python.exe",
-				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Rod_BES_BEWISE", "--update"]
+				"args": ["--io_dir", "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/Ti_Rod_BES_BEWISE", "--update"]
 			},
 			{
 				"name": "Get_all",

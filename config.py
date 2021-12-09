@@ -14,6 +14,7 @@ config['refresh_hours'] = 1
 config['date_start'] = datetime(2020, 1, 1, 0, 0, 0, tzinfo=utc)
 config['date_end'] = datetime(2020, 1, 1, 1, 0, 0, tzinfo=utc)
 config['charts'] = {}
+config['plot_sets'] = {}
 config['files_imported'] = {}
 config['supporting_data_dict'] = {}
 config['selected_pars'] = []

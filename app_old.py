@@ -15,9 +15,10 @@ import humanize
 import pandas as pd
 from datetime import datetime, timedelta
 import re
+from plotly_resampler import FigureResampler
 
 import config
-import ProcessData as ProcessData
+import ProcessData_resampler as ProcessData
 
 def getConfigCharts():
     pfile_path = config.io_dir / "Output" / 'sub_config.pkl'
