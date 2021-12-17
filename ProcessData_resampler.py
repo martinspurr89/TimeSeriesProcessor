@@ -185,7 +185,7 @@ def processColours(df):
     return df
 
 def openinfoFile():
-    info_fname = "info.xlsx"
+    info_fname = "Info2.xlsx"
     config.config['info'] = pd.read_excel(config.io_dir / info_fname, sheet_name=None, index_col=0)
     config.config['info']['setup'] = processSetup(config.config['info']['setup'])
     config.config['info']['charts'] = processCharts(config.config['info']['charts'])

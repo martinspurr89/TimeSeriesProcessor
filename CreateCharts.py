@@ -11,6 +11,8 @@ from pytz import timezone, utc
 import bz2
 import pickle
 import plotly.graph_objects as go
+from plotly_resampler import FigureResampler
+from dash import dcc
 
 import config
 import ProcessData_resampler as ProcessData
@@ -18,14 +20,15 @@ import ProcessData_resampler as ProcessData
 def getNow():
     return datetime.now(timezone('UTC')).replace(microsecond=0)
 
-def startT():
-    global startT
-    startT = getNow()
+def startT(desc=""):
+    global start
+    start = getNow()
+    print(desc, start)
 
 def endT(desc=""):
-    global startT
-    endT = getNow() - startT
-    print(desc, endT)
+    global start
+    end = getNow() - start
+    print(desc, end)
 
 def getData():
     pfile_path = config.io_dir / "Output" / 'all_data.pbz2'
@@ -101,6 +104,11 @@ def getPlotSetInfo(plot_set):
     plot_set_info = plot_set_info[plot_set_info['plot'].isin(config.config['all_data_mlt'].Plot.unique().tolist())]
     return(plot_set_info)
 
+def getChartInfo(chart):
+    chart_info = config.config['info']['plots'].loc[config.config['info']['plots'].index == chart]
+    chart_info = chart_info[chart_info['plot'].isin(config.config['chart_dfs_mlt'][chart].Plot.unique().tolist())]
+    return(chart_info)
+
 def addTrace(par, plot_fig, plot_set):
     par_info = config.config['plot_pars'][plot_set].query('parameter == "' + par + '"')
 
@@ -113,12 +121,12 @@ def addTrace(par, plot_fig, plot_set):
                     line=dict(color=par_info['colour'][0], width=2, dash=par_info['dash'][0], shape=par_info['line'][0]),
                     connectgaps=False,
                     showlegend=legend_show)
-        plot_fig.add_trace(trace)
+        plot_fig.add_trace(trace, hf_x = x_data, hf_y = y_data)
         return(plot_fig)
 
     def addPoints(plot_fig):
         trace = trace_base
-        trace.update(mode = 'markers',
+        trace.update(x = x_data, y = y_data, mode = 'markers',
                     marker = dict(color = par_info['fill'][0], symbol = par_info['shape'][0],
                                 line = dict(color = par_info['colour'][0],width=1)),
                     showlegend = bool(par_info['show_in_legend'][0]),
@@ -135,39 +143,38 @@ def addTrace(par, plot_fig, plot_set):
                                 showlegend=False,
                                 hoverinfo='skip')
         trace1 = ribbon_base
-        trace1.update(y=y_data + y_error, mode='lines', line=dict(width=0))
-        plot_fig.add_trace(trace1)
+        trace1.update(mode='lines', line=dict(width=0))
+        plot_fig.add_trace(trace1, hf_x = x_data, hf_y = y_data + y_error)
         trace2 = ribbon_base
-        trace2.update(y=y_data - y_error, fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
+        trace2.update(fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
                     line=dict(width=0.5)) #fill to trace1 y
-        plot_fig.add_trace(trace2)
+        plot_fig.add_trace(trace2, hf_x = x_data, hf_y = y_data - y_error)
         return(plot_fig)
     
     def addBars(plot_fig):
-        bar_base = go.Scatter(x=x_data,
-                                name=par_info['parameter_lab'][0],
+        bar_base = go.Scatter(name=par_info['parameter_lab'][0],
                                 line=dict(color=par_info['colour'][0], dash = 'dot'),
                                 connectgaps=True,
                                 legendgroup=par_info['parameter_lab'][0],
                                 showlegend=False,
                                 hoverinfo='skip')
         trace1 = bar_base
-        trace1.update(y=par_info['bar_order'][0] + y_data.round()/2, mode='lines', line=dict(width=0), line_shape = "hv")
+        trace1.update(x = x_data, y=par_info['bar_order'][0] + y_data.round()/2, mode='lines', line=dict(width=0), line_shape = "hv")
         plot_fig.add_trace(trace1)
         trace2 = bar_base
-        trace2.update(y=par_info['bar_order'][0] - y_data.round()/2, fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
+        trace2.update(x = x_data, y=par_info['bar_order'][0] - y_data.round()/2, fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
                     line=dict(width=0.5), line_shape = "hv", showlegend=True, hoverinfo='all') #fill to trace1 y
         plot_fig.add_trace(trace2)
 
         return(plot_fig)
 
     if len(par_info) != 0:
-        par_data = config.config['chart_dfs_mlt'][chart][config.config['chart_dfs_mlt'][chart].Parameter == par]
+        par_data = config.config['all_data_mlt'][config.config['all_data_mlt'].Parameter == par]
         x_data = par_data.DateTime
         y_data = par_data.Value
         y_error = par_data.Error
 
-        trace_base = go.Scatter(x=x_data, y=y_data,
+        trace_base = go.Scatter(x=[], y=[],
                     name=par_info['parameter_lab'][0], 
                     legendgroup=par_info['parameter_lab'][0])
 
@@ -184,26 +191,36 @@ def addTrace(par, plot_fig, plot_set):
             plot_fig = addBars(plot_fig)
     return(plot_fig)
 
+def modifyPlot(plot_fig, plot, chart):
+    plot_info = getPlotSetInfo(chart).query('plot == "' + plot + '"')
+    plot_fig.update_layout(
+        margin=dict(l=100, r=250, b=15, t=15, pad=10),
+        template="simple_white",
+        paper_bgcolor='rgba(0,0,0,0)',
+        font=dict(
+            family="Arial",
+            color="black"
+        ))
+    plot_fig.update_yaxes(title_text=plot_info['ylab'][chart], mirror=True)
+    plot_fig.update_xaxes(showgrid=True, showticklabels=False, ticks="",
+        showline=True, mirror=True,
+        range=[min(config.config['all_data'].DateTime), max(config.config['all_data'].DateTime)])
+        #fixedrange=True) #prevent x zoom
+    return(plot_fig)
+
 def createPlotFig(plot, plot_set):    
     plot_set_info = getPlotSetInfo(plot_set)
     plot_set_pars = config.config['plot_pars'][plot_set].query('plot == "' + plot + '"').parameter.unique()
     plot_info = plot_set_info.query('plot == "' + plot + '"')
     plot_data = config.config['all_data_mlt'].query('Plot == "' + plot + '"')
-    plot_fig = go.Figure()
+    plot_fig = FigureResampler(go.Figure())
     #Add traces
     for par_id in range(0, len(plot_data.Parameter.unique())):
         par = plot_data.Parameter.unique()[par_id]
         if par in plot_set_pars:
             plot_fig = addTrace(par, plot_fig, plot_set)
     #Modify plot layout
-    plot_fig = modifyPlot(plot_fig, plot, chart)
-    plot_fig = setAxisRange(plot_fig, plot, chart)
-    #Add date to last plot in chart
-    if plot == chart_info['plot'].to_list()[len(chart_info['plot'].to_list())-1]:
-        plot_fig.update_xaxes(showticklabels=True, ticks="outside")
-
-    plot_fig = FigureResampler(plot_fig)
-
+    plot_fig = modifyPlot(plot_fig, plot, plot_set)
     return(plot_fig)
 
 def createPlotSetFig(plot_set):
@@ -211,11 +228,35 @@ def createPlotSetFig(plot_set):
     # For each plot
     for plot in tqdm(getPlotSetInfo(plot_set)['plot'].to_list(), desc = "Creating plots for plot_set " + str(plot_set)):
         plot_set_fig[plot] =  createPlotFig(plot, plot_set)
-    return(chart_fig)
+    return(plot_set_fig)
 
+def editPlotforChart(plot, chart):
+    #fontsize
+    plot_fig = setAxisRange(plot_fig, plot, chart)
+    #Add date to last plot in chart
+    if plot == plot_set_info['plot'].to_list()[len(plot_set_info['plot'].to_list())-1]:
+        plot_fig.update_xaxes(showticklabels=True, ticks="outside")
 
-startT = getNow()
-print("Starting processing at: " + str(startT))
+def createDashCharts(plot_set):
+    dcc_chart_fig = []
+    p = 0
+    for plot in config.config['plot_set_figs'][plot_set]:
+        if p != len(config.config['plot_set_figs'][plot_set])-1: #if not the last plot
+            height = '20vh'
+        else:
+            height = '25vh'
+        dcc_chart_fig.append(dcc.Graph(id='graph' + str(p),
+                                            figure=config.config['plot_set_figs'][plot_set][plot],
+                                            style={'width': '98vw', 'height': ''+ height + ''}))
+        p = p + 1
+    return(dcc_chart_fig)
+
+def saveObject(object_to_save, filepath):
+    with bz2.BZ2File(filepath, 'wb') as f:
+        pickle.dump(object_to_save, f)
+
+start = getNow()
+print("Starting processing at: " + str(start))
 
 ProcessData.processArguments()
 ProcessData.openinfoFile()
@@ -224,24 +265,27 @@ getData()
 config.config['all_data_mlt'] = meltAllData(config.config['all_data'])
 for plot_set in set(config.config['plot_sets'].values()):
     chartPlotDicts(plot_set)
-endT()
 
+startT()
 pbar = tqdm(set(config.config['plot_sets'].values()))
 for plot_set in pbar:
     pbar.set_description("Creating plot_set %s" % plot_set)
     config.config['plot_set_figs'][plot_set]  = createPlotSetFig(plot_set)
 
-for chart in config.config['charts']:
-    if config.config['info']['charts'].loc[chart, 'html_on'] == "ON":
-        config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
-        exportHTML(chart)
-    if config.config['info']['charts'].loc[chart, 'png_on'] == "ON":
-        exportImage(chart, 'png')
-    if config.config['info']['charts'].loc[chart, 'pdf_on'] == "ON":
-        exportImage(chart, 'pdf')
-    config.config['dcc_chart_figs'][chart] = createDashCharts(chart)
+pbar = tqdm(set(config.config['plot_sets'].values()))
+for plot_set in pbar:
+
+    pbar.set_description("Exporting chart %s" % plot_set)
+    #if config.config['info']['charts'].loc[chart, 'html_on'] == "ON":
+    #    config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
+    #    exportHTML(chart)
+    #if config.config['info']['charts'].loc[chart, 'png_on'] == "ON":
+    #    exportImage(chart, 'png')
+    #if config.config['info']['charts'].loc[chart, 'pdf_on'] == "ON":
+    #    exportImage(chart, 'pdf')
+    config.config['dcc_plot_set_figs'][plot_set] = createDashCharts(plot_set)
 
 # # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pbz2'))
-export_config = {k: config.config[k] for k in ['charts', 'info', 'date_end', 'date_start', 'chart_dfs_mlt', 'dcc_chart_figs'] if k in config.config}
-saveObject(export_config, (config.io_dir / 'Output' / 'sub_config.pbz2'))
+export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'all_data_mlt', 'dcc_plot_set_figs'] if k in config.config}
+saveObject(export_config, (config.io_dir / 'Output' / 'sub_config2.pbz2'))
 
