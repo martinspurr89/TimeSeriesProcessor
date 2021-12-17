@@ -3,7 +3,6 @@ import getopt
 import os
 from pathlib import Path
 import pickle
-import bz2
 
 import dash
 from dash import html
@@ -18,32 +17,27 @@ from datetime import datetime, timedelta
 import re
 
 import config
-import ProcessData_resampler as ProcessData
-import CreateCharts as CreateCharts
+import ProcessData as ProcessData
 
-def getConfigData():
-    dfile_path = config.io_dir / "Output" / 'all_data.pbz2'
-    pfile_path = config.io_dir / "Output" / 'sub_config2.pbz2'
-    if os.path.exists(dfile_path) and os.path.exists(pfile_path) and config.update:
-        print("Importing processed data...")
-        with bz2.open(dfile_path, 'rb') as pfile:
-            config.config['all_data'] = pickle.load(pfile)
+def getConfigCharts():
+    pfile_path = config.io_dir / "Output" / 'sub_config.pkl'
+    if os.path.exists(pfile_path) and config.update:
         print("Importing config...")
-        with bz2.open(pfile_path, 'rb') as pfile:
+        with open(pfile_path, 'rb') as pfile:
             items = pickle.load(pfile)
         for key in list(items.keys()):
             config.config[key] = items[key]
     else:
-        print("Fetching all data (or no pickled sub_config2.pbz2 file exists)")
-        CreateCharts.main()
+        print("Fetching all data (or no pickled sub_config.pkl file exists)")
+        ProcessData.main()
         config.update = True
-        getConfigData()
+        getConfigCharts()
 
 begin = datetime.now(timezone('UTC')).replace(microsecond=0)
 print("Starting processing at: " + str(begin))
 
 ProcessData.processArguments()
-getConfigData()
+getConfigCharts()
 print("Config imported!")
 
 external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
@@ -60,10 +54,10 @@ card_style = {"box-shadow": "0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0
 tabs_init = []
 tab_ids = {}
 t = 0
-for plot_set in set(config.config['plot_sets'].values()):
+for chart in config.config['charts']:
     tab_name = "tab-" + str(t)
-    tab_ids[tab_name] = plot_set
-    tabs_init.append(dcc.Tab(label=config.config['info']['charts']['chart_label'][plot_set], value=tab_name, style={'backgroundColor': '#f5f5f5'}))
+    tab_ids[tab_name] = chart
+    tabs_init.append(dcc.Tab(label=config.config['info']['charts']['chart_label'][chart], value=tab_name, style={'backgroundColor': '#f5f5f5'}))
     t += 1
 
 diff = datetime.now(timezone('UTC')) - config.config['date_end']
@@ -96,9 +90,9 @@ def rangeString(start, end):
     return '{} ⬌ {}'.format(unixToDatetime(start).strftime("%d/%m/%Y %H:%M"),
                                   unixToDatetime(end).strftime("%d/%m/%Y %H:%M"))
 
-plot_set = min(config.config['plot_sets'].values())
-start = min(config.config['all_data'].DateTime)
-end = max(config.config['all_data'].DateTime)
+chart = min(config.config['charts'])
+start = min(config.config['chart_dfs_mlt'][chart].DateTime)
+end = max(config.config['chart_dfs_mlt'][chart].DateTime)
 
 #dates_ = config.config['chart_dfs_mlt'][chart].DateTime
 ###
@@ -147,8 +141,8 @@ app.layout = html.Div(children=[
     [Input('tabs', 'value')])
 def update_slider(tab):
 
-    start = min(config.config['all_data'].DateTime)
-    end = max(config.config['all_data'].DateTime)
+    start = min(config.config['chart_dfs_mlt'][tab_ids[tab]].DateTime)
+    end = max(config.config['chart_dfs_mlt'][tab_ids[tab]].DateTime)
 
     content = [html.Label(rangeString(start, end), id='time-range-label')]
     content.append(html.Div(id='loading', children=
@@ -177,7 +171,7 @@ def _update_time_range_label(dates_selected):
     [Input('tabs', 'value')])
 def update_plot_chooser(tab):
     plots = {}
-    for plot in config.config['dcc_plot_set_figs'][tab_ids[tab]]:
+    for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
         plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
 
     content = [html.Div(html.Label('Select plots:', id='plot_chooser-label'),
@@ -201,9 +195,9 @@ def render_content(n_clicks, tab_click, tab, dates_selected, plots, height):
     content = []
     plots.sort() #sort alpha
     plots.sort(key=len) #sort by length (graph10+)
-    for plot in config.config['dcc_plot_set_figs'][tab_ids[tab]]:
+    for plot in config.config['dcc_chart_figs'][tab_ids[tab]]:
         if plot.id in plots:
-            plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=False)
+            plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=True)
             plot.style['height'] = str(height) + 'vh'
             if plot.id == plots[len(plots)-1]:
                 plot.figure.update_xaxes(showticklabels=True, ticks="outside")

@@ -255,37 +255,36 @@ def saveObject(object_to_save, filepath):
     with bz2.BZ2File(filepath, 'wb') as f:
         pickle.dump(object_to_save, f)
 
-start = getNow()
-print("Starting processing at: " + str(start))
+def main():
+    ProcessData.processArguments()
+    ProcessData.openinfoFile()
+    getData()
 
-ProcessData.processArguments()
-ProcessData.openinfoFile()
-getData()
+    config.config['all_data_mlt'] = meltAllData(config.config['all_data'])
+    for plot_set in set(config.config['plot_sets'].values()):
+        chartPlotDicts(plot_set)
 
-config.config['all_data_mlt'] = meltAllData(config.config['all_data'])
-for plot_set in set(config.config['plot_sets'].values()):
-    chartPlotDicts(plot_set)
+    pbar = tqdm(set(config.config['plot_sets'].values()))
+    for plot_set in pbar:
+        pbar.set_description("Creating plot_set %s" % plot_set)
+        config.config['plot_set_figs'][plot_set]  = createPlotSetFig(plot_set)
 
-startT()
-pbar = tqdm(set(config.config['plot_sets'].values()))
-for plot_set in pbar:
-    pbar.set_description("Creating plot_set %s" % plot_set)
-    config.config['plot_set_figs'][plot_set]  = createPlotSetFig(plot_set)
+    pbar = tqdm(set(config.config['plot_sets'].values()))
+    for plot_set in pbar:
 
-pbar = tqdm(set(config.config['plot_sets'].values()))
-for plot_set in pbar:
+        pbar.set_description("Exporting chart %s" % plot_set)
+        #if config.config['info']['charts'].loc[chart, 'html_on'] == "ON":
+        #    config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
+        #    exportHTML(chart)
+        #if config.config['info']['charts'].loc[chart, 'png_on'] == "ON":
+        #    exportImage(chart, 'png')
+        #if config.config['info']['charts'].loc[chart, 'pdf_on'] == "ON":
+        #    exportImage(chart, 'pdf')
+        config.config['dcc_plot_set_figs'][plot_set] = createDashCharts(plot_set)
 
-    pbar.set_description("Exporting chart %s" % plot_set)
-    #if config.config['info']['charts'].loc[chart, 'html_on'] == "ON":
-    #    config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
-    #    exportHTML(chart)
-    #if config.config['info']['charts'].loc[chart, 'png_on'] == "ON":
-    #    exportImage(chart, 'png')
-    #if config.config['info']['charts'].loc[chart, 'pdf_on'] == "ON":
-    #    exportImage(chart, 'pdf')
-    config.config['dcc_plot_set_figs'][plot_set] = createDashCharts(plot_set)
+    # # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pbz2'))
+    export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'dcc_plot_set_figs'] if k in config.config}
+    saveObject(export_config, (config.io_dir / 'Output' / 'sub_config2.pbz2'))
 
-# # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pbz2'))
-export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'all_data_mlt', 'dcc_plot_set_figs'] if k in config.config}
-saveObject(export_config, (config.io_dir / 'Output' / 'sub_config2.pbz2'))
-
+if __name__ == "__main__":
+    main()
