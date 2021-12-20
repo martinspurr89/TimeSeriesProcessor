@@ -34,4 +34,5 @@ config['plot_set_figs'] = {}
 config['chart_figs'] = {}
 config['dcc_chart_figs'] = {}
 config['dcc_plot_set_figs'] = {}
+config['dcc_plot_names'] = {}
 config['div_chart_figs'] = {}

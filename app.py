@@ -14,6 +14,7 @@ from pytz import timezone, utc
 import base64
 import humanize
 import pandas as pd
+import numpy as np
 from datetime import datetime, timedelta
 import re
 
@@ -104,7 +105,7 @@ end = max(config.config['all_data'].DateTime)
 ###
 
 ##APP##
-
+CreateCharts.startT()
 app.layout = html.Div(children=[
     #html.Div([html.Img(src=app.get_asset_url('ToOL-PRO-BES.png'), style={'width':'90%', 'max-width': '100%'})], style={'textAlign': 'center'}),
     html.Div([html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'75%', 'max-width': '100%'})], style={'textAlign': 'center'}),
@@ -119,15 +120,35 @@ app.layout = html.Div(children=[
             ]),
             html.Div(children=[
                 dcc.Loading(id='plot_chooser-content'),
-            ], className="eight columns"),
+            ], className="six columns"),
             html.Div(children=[
                 html.I("Plot height: "),
                 dcc.Input(
                     id="height_set", type="number", placeholder="Height set input",
                     min=1, max=50, step=1,
                     value=20,
-                    style={'width':'50%'}
+                    style={'width':'40%'}
                 ), html.I("%")
+            ], className="two columns"),
+            html.Div(children=[
+                html.I("Resample: "),
+                dcc.RadioItems(
+                    options=[
+                        {'label': 'Low', 'value': 'LOW'},
+                        {'label': 'High', 'value': 'HIGH'}
+                    ],
+                    value='LOW',
+                    labelStyle={'display': 'inline-block'}
+                )
+            ], className="two columns"),
+            html.Div(children=[
+                html.I("Resample: "),
+                dcc.Input(
+                    id="resample_set", type="number", placeholder="Resample set input",
+                    min=0, max=180, step=1,
+                    value=120,
+                    style={'width':'40%'}
+                ), html.I("mins")
             ], className="two columns"),
             html.Div(children=
                 html.Button('Submit', id='submit-val', n_clicks=0),
@@ -195,14 +216,49 @@ def update_plot_chooser(tab):
 #CHART
 @app.callback(Output('chart-content', 'children'),
             [Input('submit-val', 'n_clicks'), Input('tabs', 'value')],
-            [State('tabs', 'value'), State('date_slider','value'), State('plot_chooser', 'value'), State('height_set', 'value')])
-def render_content(n_clicks, tab_click, tab, dates_selected, plots, height):
+            [State('tabs', 'value'), State('date_slider','value'), State('plot_chooser', 'value'),
+            State('height_set', 'value'), State('resample_set', 'value')])
+def render_content(n_clicks, tab_click, tab, dates_selected, plots, height, resample):
     #time.sleep(2)
     content = []
     plots.sort() #sort alpha
     plots.sort(key=len) #sort by length (graph10+)
+    chart_data = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
+    chart_data = chart_data.reset_index()
+
+    CreateCharts.endT()
     for plot in config.config['dcc_plot_set_figs'][tab_ids[tab]]:
         if plot.id in plots:
+            plot_name = config.config['dcc_plot_names'][tab_ids[tab]][plot.id]
+            for trace in plot.figure.data:
+                par = config.config['plot_pars'][tab_ids[tab]].query(
+                    "plot == '" + plot_name + "'").query(
+                    "parameter_lab == '" + trace.name + "'")['parameter'][0]
+                par_info = config.config['plot_pars'][tab_ids[tab]].query('parameter == "' + par + '"')
+                x_data = chart_data.DateTime
+                y_data = chart_data[par]
+                error_bars = False
+                if par + "_err" in config.config['all_data'].columns[1:]:
+                    error_bars = True
+                    y_error = chart_data[par + "_err"]
+
+                if trace.mode == "markers" or trace.line.shape == "hv":
+                    if error_bars:
+                        y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
+                    x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
+                    y_data.drop(y_data[np.isnan(y_data)].index, inplace=True)
+                trace.x = x_data
+                trace.y = y_data
+                if trace.mode == "markers":
+                    trace.update(error_y = dict(type = 'data', visible = True, array = y_error, color = par_info['colour'][0]))
+                if trace.mode == "none" and par_info['ribbon'][0]:
+                    trace.y = y_data - y_error
+                if trace.line.width == 0 and par_info['ribbon'][0]:
+                    trace.y = y_data + y_error
+                if trace.line.shape == "hv" and par_info['bar'][0]:
+                    trace.y = par_info['bar_order'][0] + y_data.round()/2
+                if trace.mode == "none" and par_info['bar'][0]:
+                    trace.y = par_info['bar_order'][0] - y_data.round()/2
             plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=False)
             plot.style['height'] = str(height) + 'vh'
             if plot.id == plots[len(plots)-1]:

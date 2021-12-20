@@ -42,44 +42,13 @@ def getData():
         config.update = True
         getData()
 
-def meltAllData(wide_data):
-    criteria = config.config['all_data'].isna().all()
-    wide_data = config.config['all_data'][criteria.index[-criteria]]
-    
-    data_cols = []
-    err_cols = ["DateTime"]
-    for col in wide_data.columns:
-        if "_err" not in col:
-            data_cols.append(col)
-        else:
-            err_cols.append(col)
-
-    df_dict = {}
-    for col in tqdm(data_cols[1:], desc="Melt data cols"):
-        df_dict[col] = wide_data[['DateTime', col]].melt(id_vars=['DateTime'], var_name = 'Parameter', value_name='Value')
-        err_col = col + "_err"
-        if err_col in err_cols:
-            df_err = wide_data[['DateTime', err_col]].melt(id_vars=['DateTime'], var_name = 'Parameter', value_name='Error')
-            df_err['Parameter'] = df_err['Parameter'].str.replace(r'_err', '')
-            df_dict[col] = pd.concat([df_dict[col], df_err['Error']], axis=1)
-        else:
-            df_dict[col]['Error'] = np.nan
-        if col in (config.config['par_style_dict']['point']) or col in (config.config['par_style_dict']['bar']):
-            df_dict[col].drop(df_dict[col][np.isnan(df_dict[col]['Value'])].index, inplace=True)
-    df_long = pd.concat(df_dict)
-    df_long = df_long.reset_index(drop=True)
-        
-    df_long.sort_values(by=['DateTime', 'Parameter'], inplace=True)
-    df_long.loc[:, 'Plot'] = df_long['Parameter'].map(config.config['par_plot_dict'])
-
-    return(df_long)
-
-def chartPlotDicts(plot_set):
+def plotParDicts(plot_set):
+    all_data_pars = [c for c in config.config['all_data'].columns[1:] if not "_err" in c]
     par_info1 = config.config['info']['parameters'][
-        config.config['info']['parameters']['parameter'].isin(config.config['all_data_mlt'].Parameter.unique())].drop(
+        config.config['info']['parameters']['parameter'].isin(all_data_pars)].drop(
         columns=["code", "parameter_ave"])
     par_info2 = config.config['info']['parameters_ave'][
-        config.config['info']['parameters_ave']['parameter_ave'].isin(config.config['all_data_mlt'].Parameter.unique())].rename(
+        config.config['info']['parameters_ave']['parameter_ave'].isin(all_data_pars)].rename(
         columns={"parameter_ave": "parameter"})
     par_info_all = (par_info1.append(par_info2)).query('selected_plot_' + str(plot_set) + ' == 1')
 
@@ -101,7 +70,7 @@ def chartPlotDicts(plot_set):
 
 def getPlotSetInfo(plot_set):
     plot_set_info = config.config['info']['plots'].loc[config.config['info']['plots'].index == plot_set]
-    plot_set_info = plot_set_info[plot_set_info['plot'].isin(config.config['all_data_mlt'].Plot.unique().tolist())]
+    plot_set_info = plot_set_info[plot_set_info['plot'].isin(config.config['plot_pars'][plot_set]['plot'].unique())]
     return(plot_set_info)
 
 def getChartInfo(chart):
@@ -121,21 +90,23 @@ def addTrace(par, plot_fig, plot_set):
                     line=dict(color=par_info['colour'][0], width=2, dash=par_info['dash'][0], shape=par_info['line'][0]),
                     connectgaps=False,
                     showlegend=legend_show)
-        plot_fig.add_trace(trace, hf_x = x_data, hf_y = y_data)
+        plot_fig.add_trace(trace)
         return(plot_fig)
 
     def addPoints(plot_fig):
         trace = trace_base
-        trace.update(x = x_data, y = y_data, mode = 'markers',
+        trace.update(#x = x_data, y = y_data,
+                    mode = 'markers',
                     marker = dict(color = par_info['fill'][0], symbol = par_info['shape'][0],
                                 line = dict(color = par_info['colour'][0],width=1)),
-                    showlegend = bool(par_info['show_in_legend'][0]),
-                    error_y = dict(type = 'data', array = y_error, visible = True))
+                    showlegend = bool(par_info['show_in_legend'][0]))
+        if error_bars:
+            trace.update(error_y = dict(type = 'data', visible = True))#, array = y_error))
         plot_fig.add_trace(trace)
         return(plot_fig)
     
     def addRibbon(plot_fig):
-        ribbon_base = go.Scatter(x=x_data,
+        ribbon_base = go.Scatter(#x=x_data,
                                 name=par_info['parameter_lab'][0],
                                 line=dict(color=par_info['colour'][0], dash = 'dot'),
                                 connectgaps=True,
@@ -144,11 +115,11 @@ def addTrace(par, plot_fig, plot_set):
                                 hoverinfo='skip')
         trace1 = ribbon_base
         trace1.update(mode='lines', line=dict(width=0))
-        plot_fig.add_trace(trace1, hf_x = x_data, hf_y = y_data + y_error)
+        plot_fig.add_trace(trace1)
         trace2 = ribbon_base
         trace2.update(fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
                     line=dict(width=0.5)) #fill to trace1 y
-        plot_fig.add_trace(trace2, hf_x = x_data, hf_y = y_data - y_error)
+        plot_fig.add_trace(trace2)
         return(plot_fig)
     
     def addBars(plot_fig):
@@ -159,20 +130,33 @@ def addTrace(par, plot_fig, plot_set):
                                 showlegend=False,
                                 hoverinfo='skip')
         trace1 = bar_base
-        trace1.update(x = x_data, y=par_info['bar_order'][0] + y_data.round()/2, mode='lines', line=dict(width=0), line_shape = "hv")
+        trace1.update(#x = x_data, y=par_info['bar_order'][0] + y_data.round()/2, 
+                        mode='lines', line=dict(width=0), line_shape = "hv")
         plot_fig.add_trace(trace1)
         trace2 = bar_base
-        trace2.update(x = x_data, y=par_info['bar_order'][0] - y_data.round()/2, fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
+        trace2.update(#x = x_data, y=par_info['bar_order'][0] - y_data.round()/2,
+                    fill='tonexty', mode='none', fillcolor=par_info['fill'][0],
                     line=dict(width=0.5), line_shape = "hv", showlegend=True, hoverinfo='all') #fill to trace1 y
         plot_fig.add_trace(trace2)
 
         return(plot_fig)
 
     if len(par_info) != 0:
-        par_data = config.config['all_data_mlt'][config.config['all_data_mlt'].Parameter == par]
-        x_data = par_data.DateTime
-        y_data = par_data.Value
-        y_error = par_data.Error
+        all_data_pars = [c for c in config.config['all_data'].columns[1:] if not "_err" in c]
+
+
+        x_data = config.config['all_data'].DateTime
+        y_data = config.config['all_data'][par]
+        error_bars = False
+        if par + "_err" in all_data_pars:
+            error_bars = True
+            y_error = config.config['all_data'][par + "_err"]
+
+        if any(par_info['point'] ==True) or any(par_info['bar'] ==True):
+            if error_bars:
+                y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
+            x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
+            y_data.drop(y_data[np.isnan(y_data)].index, inplace=True)
 
         trace_base = go.Scatter(x=[], y=[],
                     name=par_info['parameter_lab'][0], 
@@ -210,15 +194,13 @@ def modifyPlot(plot_fig, plot, chart):
 
 def createPlotFig(plot, plot_set):    
     plot_set_info = getPlotSetInfo(plot_set)
-    plot_set_pars = config.config['plot_pars'][plot_set].query('plot == "' + plot + '"').parameter.unique()
+    plot_set_pars = config.config['plot_pars'][plot_set].query('plot == "' + plot + '"').parameter.unique().tolist()
     plot_info = plot_set_info.query('plot == "' + plot + '"')
-    plot_data = config.config['all_data_mlt'].query('Plot == "' + plot + '"')
-    plot_fig = FigureResampler(go.Figure())
+    plot_data = config.config['all_data'][['DateTime'] + plot_set_pars]
+    plot_fig = go.Figure()
     #Add traces
-    for par_id in range(0, len(plot_data.Parameter.unique())):
-        par = plot_data.Parameter.unique()[par_id]
-        if par in plot_set_pars:
-            plot_fig = addTrace(par, plot_fig, plot_set)
+    for par in plot_set_pars:
+        plot_fig = addTrace(par, plot_fig, plot_set)
     #Modify plot layout
     plot_fig = modifyPlot(plot_fig, plot, plot_set)
     return(plot_fig)
@@ -240,6 +222,7 @@ def editPlotforChart(plot, chart):
 def createDashCharts(plot_set):
     dcc_chart_fig = []
     p = 0
+    config.config['dcc_plot_names'][plot_set] = {}
     for plot in config.config['plot_set_figs'][plot_set]:
         if p != len(config.config['plot_set_figs'][plot_set])-1: #if not the last plot
             height = '20vh'
@@ -248,6 +231,7 @@ def createDashCharts(plot_set):
         dcc_chart_fig.append(dcc.Graph(id='graph' + str(p),
                                             figure=config.config['plot_set_figs'][plot_set][plot],
                                             style={'width': '98vw', 'height': ''+ height + ''}))
+        config.config['dcc_plot_names'][plot_set]['graph' + str(p)] = plot
         p = p + 1
     return(dcc_chart_fig)
 
@@ -260,19 +244,16 @@ def main():
     ProcessData.openinfoFile()
     getData()
 
-    config.config['all_data_mlt'] = meltAllData(config.config['all_data'])
-    for plot_set in set(config.config['plot_sets'].values()):
-        chartPlotDicts(plot_set)
-
     pbar = tqdm(set(config.config['plot_sets'].values()))
     for plot_set in pbar:
         pbar.set_description("Creating plot_set %s" % plot_set)
+        plotParDicts(plot_set)
+        startT()
         config.config['plot_set_figs'][plot_set]  = createPlotSetFig(plot_set)
+        endT()
+        config.config['dcc_plot_set_figs'][plot_set] = createDashCharts(plot_set)
 
-    pbar = tqdm(set(config.config['plot_sets'].values()))
-    for plot_set in pbar:
-
-        pbar.set_description("Exporting chart %s" % plot_set)
+        #pbar.set_description("Exporting chart %s" % plot_set)
         #if config.config['info']['charts'].loc[chart, 'html_on'] == "ON":
         #    config.config['div_chart_figs'][chart] = createOfflineCharts(chart)
         #    exportHTML(chart)
@@ -280,10 +261,10 @@ def main():
         #    exportImage(chart, 'png')
         #if config.config['info']['charts'].loc[chart, 'pdf_on'] == "ON":
         #    exportImage(chart, 'pdf')
-        config.config['dcc_plot_set_figs'][plot_set] = createDashCharts(plot_set)
+        
 
     # # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pbz2'))
-    export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'dcc_plot_set_figs'] if k in config.config}
+    export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'dcc_plot_set_figs', 'plot_pars', 'dcc_plot_names'] if k in config.config}
     saveObject(export_config, (config.io_dir / 'Output' / 'sub_config2.pbz2'))
 
 if __name__ == "__main__":
