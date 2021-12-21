@@ -63,12 +63,11 @@ encoded_image = base64.b64encode(open(image_filename, 'rb').read())
 #app.scripts.config.serve_locally = True
 
 tabs_init = []
-tab_ids = {}
+plot_sets_dict = {}
 t = 0
 for plot_set in set(config.config['plot_sets'].values()):
-    tab_name = "tab-" + str(t)
-    tab_ids[tab_name] = plot_set
-    tabs_init.append(dcc.Tab(label=config.config['info']['charts']['chart_label'][plot_set], value=tab_name, style={'backgroundColor': '#f5f5f5'}))
+    plot_set_name = config.config['info']['charts']['chart_label'][plot_set]
+    plot_sets_dict[t] = {'name':plot_set_name, 'plot_set':plot_set}
     t += 1
 
 diff = datetime.now(timezone('UTC')) - config.config['date_end']
@@ -94,85 +93,182 @@ def getMarks(start, end, periods):
     result = {}
     for i, date in enumerate(daterange):
         # Append value to dict
-        result[unixTimeMillis(date)] = str(date.strftime('%Y-%m-%d'))
+        result[unixTimeMillis(date)] = str(date.strftime('%d/%m/%y'))
     return result
 
 def rangeString(start, end):
     return '{} ⬌ {}'.format(unixToDatetime(start).strftime("%d/%m/%Y %H:%M"),
                                   unixToDatetime(end).strftime("%d/%m/%Y %H:%M"))
 
+def resampleAlert(value):
+    if value == None:
+        return dbc.Alert("Set value for resampling in minutes", color="danger")
+    if value > 0:
+        return dbc.Alert('Resample every ' + str(value) + ' mins', color="light")
+    elif value == 0:
+        return dbc.Alert('Data not resampled', color="warning")
+    else:
+        return ""
+
+def calcResampler(resolution, set):
+    if resolution == 'HIGH':
+        value = 15
+    elif resolution == 'LOW':
+        value = 60
+    elif resolution == 'NONE':
+        value = 0
+    elif resolution == 'SET':
+        value = set
+    return(value)
+
+
 plot_set = min(config.config['plot_sets'].values())
 start = min(config.config['all_data'].DateTime)
 end = max(config.config['all_data'].DateTime)
+def_resample = 15
 
-#dates_ = config.config['chart_dfs_mlt'][chart].DateTime
-###
+header_card = dbc.Card([
+                dbc.CardImg(src=image_filename, top=True),
+                html.P(update_text, className="card-text", style={'textAlign': 'left'}, id='load'),
+                ], className = 'px-3')
+
+datetime_pick = html.Div(children=[
+                    dash_datetimepicker.DashDatetimepicker(id="datetime-picker", 
+                    startDate=start, endDate=end, utc=True, locale="en-gb"),
+                ], className='p-3', style = {'align-self': 'center'})
+
+datetime_slider = html.Div(children=[
+                         dbc.Spinner(id='slider-content', color="info")
+                     ], className='p-3')
+
+plot_set_dropdown = html.Div(
+    [
+        dbc.Select(
+            id='plot_set_drop',
+            options=[
+                {"label": 'Plot Set ' + str(plot_set), "value": plot_set} for plot_set in set(config.config['plot_sets'].values())],
+            value=plot_set,
+        ),
+    ], className='p-3', style={'textAlign': 'left'}
+)
+
+resampler_radio = html.Div(
+    [
+        dbc.Row([
+            dbc.Col(dbc.RadioItems(
+                id="resample_radio",
+                options=[
+                    {'label': 'Low', 'value': 'LOW'},
+                    {'label': 'High', 'value': 'HIGH'},
+                    {'label': 'None', 'value': 'NONE'},
+                    {'label': 'Set', 'value': 'SET'},
+                ],
+                value='LOW',
+                inline=True
+            )),
+            dbc.Col(html.Div(dbc.Input(id='resample_set', type="number", min=1, step=1,
+            placeholder="mins"), id="resample_div"), width=3),
+        ], align="center"),
+
+    ], className='p-3'
+)
+
+resampler_input = html.Div(
+    [
+        dcc.Store(id='resampler'),
+        dbc.Row([
+            dbc.Col(html.Div(dbc.Spinner(id='resample_label')),)
+        ]),
+    ], className='p-0', style={'textAlign': 'left'}
+)
+
+height_input = html.Div(
+    [
+        dbc.Row([
+            dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Plot height", value=20, id='height_set'), width=8),
+            dbc.Col(html.P(" %"), width=1)
+        ], justify="center"),
+    ], className='p-3', style={'textAlign': 'left'}
+)
+
+submit_input = html.Div(
+    [
+        dbc.Button(
+            "SUBMIT",
+            id="submit_val",
+            n_clicks=0,
+            color='success'
+        )
+    ], className='p-3',
+)
+
+offcanvas = html.Div(
+    [
+        dbc.Button(
+            "Select plots",
+            id="open-offcanvas-scrollable",
+            n_clicks=0,
+        ),
+        dbc.Offcanvas([
+                dbc.Spinner(id='plot_chooser-content', color="primary"),
+                dbc.Spinner(id='trace_chooser-content', color="primary"),
+            ],
+            id="offcanvas-scrollable",
+            scrollable=True,
+            is_open=False,
+            placement='start',
+            style = {'width': '600px'}
+        ),
+    ], className='p-3'
+)
+
+
 
 ##APP##
-app.layout = html.Div(children=[
-    #html.Div([html.Img(src=app.get_asset_url('ToOL-PRO-BES.png'), style={'width':'90%', 'max-width': '100%'})], style={'textAlign': 'center'}),
-    html.Div([html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'75%', 'max-width': '100%'})], style={'textAlign': 'center'}),
-    update_text,
-    html.Div(children=[
-        dcc.Tabs(id="tabs",
-            value="tab-0",
-            children=tabs_init),
-        html.Div(children=[
-            html.Div([dbc.Card([
-                    html.Div(children=[
-                        dash_datetimepicker.DashDatetimepicker(id="datetime-picker", startDate=start, endDate=end, utc=True, locale="en-gb"),
-                    ]),
-                    html.Div(children=[
-                        dcc.Loading(id='slider-content')
-                    ])
-                ])
-            ]),
+app.layout = dbc.Container([
+    html.Div([
+            #HEADER
+            dbc.Row(dbc.Col([
+                header_card
+            ])),
 
-            html.Div(children=[
-                dcc.Loading(id='plot_chooser-content'),
-            ], className="six columns"),
-            html.Div(children=[
-                html.I("Plot height: "),
-                dcc.Input(
-                    id="height_set", type="number", placeholder="Height set input",
-                    min=1, max=50, step=1,
-                    value=20,
-                    style={'width':'40%'}
-                ), html.I("%")
-            ], className="two columns"),
-            html.Div(children=[
-                html.I("Resample: "),
-                dcc.RadioItems(
-                    id="resample_radio",
-                    options=[
-                        {'label': 'Set', 'value': 'SET'},
-                        {'label': 'Low', 'value': 'LOW'},
-                        {'label': 'High', 'value': 'HIGH'}
-                    ],
-                    value='LOW',
-                    labelStyle={'display': 'inline-block'}
-                )
-            ], className="two columns"),
-            html.Div(id="resample_div",children=[
-                html.I("Resample: "),
-                dcc.Input(
-                    id="resample_set", type="number", placeholder="Resample set input",
-                    min=0, max=180, step=1,
-                    value=120,
-                    style={'width':'40%'}
-                ), html.I("mins")
-            ], className="two columns"),
-            html.Div(children=
-                html.Button('Submit', id='submit-val', n_clicks=0),
-                className="one columns"),
-            html.Br(), html.Br(), html.Br()]),
-        html.Div(children=[
-            dcc.Loading(id='chart-content'),
-        ]),
-    ]),
-])
+            #DATETIME
+            dbc.Row(dbc.Col(dbc.Card([
+                dbc.CardHeader("DateTime Range", className="card-title",),
+                datetime_pick,
+                datetime_slider,
+            ], className="px-3"))),
 
-##CALLBACKS##
+            dbc.Row([
+                dbc.Col(html.Div(dbc.Card([
+                    dbc.CardHeader("Select Plots", className="card-title",),
+                    plot_set_dropdown,
+                    offcanvas,
+                ]))),
+                dbc.Col(html.Div(dbc.Card([
+                    dbc.CardHeader("Resampling Resolution", className="card-title",),
+                    resampler_radio,
+                    resampler_input
+                ]))),
+                dbc.Col([dbc.Row([
+                    dbc.Col(html.Div(dbc.Card([
+                        dbc.CardHeader("Plot Height", className="card-title",),
+                        height_input,
+                    ]))),
+                    dbc.Col(html.Div(dbc.Card([
+                        dbc.CardHeader("Submit", className="card-title",),
+                        submit_input,
+                    ]))),
+                ])]),
+            ], align='center'),
+        ], className="p-5", style={'textAlign': 'center'}),
+        dbc.Row([
+            dbc.Col(html.Div([dcc.Loading(id='chart-content'),])),
+        ], className = "g-0", style={'textAlign': 'center'}),
+], fluid=True)
+
+
+#CALLBACKS
 
 #DATETIME PICKER
 @app.callback(
@@ -188,46 +284,40 @@ def datetime_range(startDate, endDate):
 #SLIDER
 @app.callback(
     Output('slider-content', 'children'),
-    [Input('tabs', 'value')])
-def update_slider(tab):
-
-    start = min(config.config['all_data'].DateTime)
-    end = max(config.config['all_data'].DateTime)
-
+    [Input('load', 'value')])
+def update_slider(load):
+    startDate = pd.to_datetime(start)
+    endDate = pd.to_datetime(end)
     content = []
-    content.append(html.Div(id='loading', children=
-        dcc.RangeSlider(
+    content.append(
+        html.Div(dcc.RangeSlider(
             id='date_slider',
             updatemode='mouseup',
-            min=unixTimeMillis(start),
-            max=unixTimeMillis(end),
+            min=unixTimeMillis(startDate),
+            max=unixTimeMillis(endDate),
             count=1,
             step=60000,
             value=[unixTimeMillis(start), unixTimeMillis(end)],
-            marks=getMarks(start, end, 8)),
-    ))
+            marks=getMarks(start, end, 8),
+            className='px-5'),
+    id='loading'))
     return content
 
-#TIME RANGE
-@app.callback(
-    Output('time-range-label', 'children'),
-    [Input('date_slider', 'value')])
-def _update_time_range_label(dates_selected):
-    return rangeString(dates_selected[0], dates_selected[1])
-
+#TIME RANGE START
 @app.callback(
     Output('datetime-picker', 'startDate'),
     [Input('date_slider', 'value')])
 def _update_time_range_label(dates_selected):
     return unixToDatetime(dates_selected[0])
 
+#TIME RANGE END
 @app.callback(
     Output('datetime-picker', 'endDate'),
     [Input('date_slider', 'value')])
 def _update_time_range_label(dates_selected):
     return unixToDatetime(dates_selected[1])
 
-#RESAMPLER
+#RESAMPLE SET DISPLAY
 @app.callback(
     Output('resample_div', 'style'),
     [Input('resample_radio', 'value')])
@@ -237,72 +327,167 @@ def disableinput(value):
     else:
         return {'display': 'none'}
 
+#RESAMPLE SET DISABLE
+@app.callback(
+     Output('resample_set', 'disabled'),
+     [Input('resample_radio', 'value')])
+def disableinput(value):
+     if value == 'SET':
+         return False
+     else:
+         return True
+
+#RESAMPLE SET INVALID
+@app.callback(
+     Output('resample_set', 'invalid'),
+     [Input('resampler', 'data')])
+def disableinput(value):
+    if value == None:
+        return True
+    else:
+        return False
+
+#RESAMPLE/SUBMIT INVALID
+@app.callback(
+     Output('submit_val', 'disabled'),
+     [Input('resampler', 'data')])
+def disableinput(value):
+    if value == None:
+        return True
+    else:
+        return False
+
+#CALC/STORE RESAMPLER VAL
+@app.callback(
+    Output('resampler', 'data'),
+    [Input('resample_radio', 'value'), Input('resample_set', 'value')])
+def calcResampling(resolution, set):
+    return calcResampler(resolution, set)
+
+#UPDATE RESAMPLER ALERT
+@app.callback(
+    Output('resample_label', 'children'),
+    [Input('resampler', 'data')])
+def printResampler(value):
+    return resampleAlert(value)
+
+#OFFCANVAS PLOT CHOOSER
+@app.callback(
+    Output("offcanvas-scrollable", "is_open"),
+    Input("open-offcanvas-scrollable", "n_clicks"),
+    State("offcanvas-scrollable", "is_open"))
+def toggle_offcanvas_scrollable(n1, is_open):
+    if n1:
+        return not is_open
+    return is_open
+
 #PLOT CHOOSER
 @app.callback(
     Output('plot_chooser-content', 'children'),
-    [Input('tabs', 'value')])
-def update_plot_chooser(tab):
+    [Input('plot_set_drop', 'value')])
+def update_plot_chooser(plot_set):
     plots = {}
-    for plot in config.config['dcc_plot_set_figs'][tab_ids[tab]]:
+    for plot in config.config['dcc_plot_set_figs'][plot_set]:
         plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
 
-    content = [html.Div(html.Label('Select plots:', id='plot_chooser-label'),
-            className="one columns")]
-    content.append(html.Div(id='loading2', children=
-        dcc.Checklist(
+    content = [dbc.CardHeader("Select Plots:", className="card-title",)]
+    content.append(html.Div(
+        dbc.Checklist(
             id='plot_chooser',
             options=[{'label':plots[plot], 'value':plot} for plot in plots],
             value=list(plots.keys()),
-            labelStyle={'display': 'inline-block'}
-        ), className="eleven columns")
+            inline=True,
+        ), className="p-3", id='loading2'),
     )
-    return content
+    content_card = dbc.Row(dbc.Col(dbc.Card(content)))
+    return content_card
+
+#TRACE CHOOSER
+@app.callback(
+    Output('trace_chooser-content', 'children'),
+    [Input('plot_chooser', 'value')], [State('plot_set_drop', 'value'), State('plot_chooser', 'value')])
+def update_trace_chooser(n1, plot_set, plots):
+    plots.sort() #sort alpha
+    plots.sort(key=len) #sort by length (graph10+)
+    
+    card_contents = [dbc.CardHeader("Select traces:", className="card-title",)]
+    for plot in config.config['dcc_plot_set_figs'][plot_set]:
+        if plot.id in plots:
+            plot_name = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+            content = [dbc.CardHeader(plot_name, className="card-title",)]
+            traces = list(set(trace.name for trace in plot.figure.data))
+            traces.sort()
+            content.append(html.Div(
+                dbc.Checklist(
+                    id=plot.id + '_traces',
+                    options=[{'label':trace, 'value':trace} for trace in traces],
+                    value=traces,
+                    inline=True,
+                    input_checked_style={
+                        "backgroundColor": "#fa7268",
+                        "borderColor": "#ea6258",
+                    },
+                ), className="p-3"))
+            card_contents.append(dbc.Col(content, className = 'px-3'))
+    #for plot in config.config['dcc_plot_set_figs'][plot_set]:
+    #    plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+    #card = sum(card_contents, [])
+
+    return dbc.Row(dbc.Card(card_contents, id='trace_chooser'))
 
 #CHART
 @app.callback(Output('chart-content', 'children'),
-            [Input('submit-val', 'n_clicks'), Input('tabs', 'value')],
-            [State('tabs', 'value'), State('date_slider','value'), State('plot_chooser', 'value'),
-            State('height_set', 'value'), State('resample_set', 'value')])
-def render_content(n_clicks, tab_click, tab, dates_selected, plots, height, resample):
+            [Input('submit_val', 'n_clicks'), Input('plot_set_drop', 'value')],
+            [State('plot_set_drop', 'value'), State('date_slider','value'), State('plot_chooser', 'value'),
+            State('height_set', 'value'), State('resampler', 'data'), State('trace_chooser', 'children')])
+def render_content(n_clicks, plot_set_click, plot_set, dates_selected, plots, height, resample, traces):
     #time.sleep(2)
+    traces_info = {}
+    for plot_id in range(1,len(traces)):
+        plot_name = traces[plot_id]['props']['children'][1]['props']['children']['props']['id']
+        plot_name = plot_name.replace("_traces", "")
+        traces_info[plot_name] = traces[plot_id]['props']['children'][1]['props']['children']['props']['value']
+
+
     content = []
     plots.sort() #sort alpha
     plots.sort(key=len) #sort by length (graph10+)
     chart_data = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
     chart_data = chart_data.reset_index()
 
-    for plot in config.config['dcc_plot_set_figs'][tab_ids[tab]]:
+    for plot in config.config['dcc_plot_set_figs'][plot_set]:
         if plot.id in plots:
-            plot_name = config.config['dcc_plot_names'][tab_ids[tab]][plot.id]
+            plot_name = config.config['dcc_plot_names'][plot_set][plot.id]
             for trace in plot.figure.data:
-                par = config.config['plot_pars'][tab_ids[tab]].query(
-                    "plot == '" + plot_name + "'").query(
-                    "parameter_lab == '" + trace.name + "'")['parameter'][0]
-                par_info = config.config['plot_pars'][tab_ids[tab]].query('parameter == "' + par + '"')
-                x_data = chart_data.DateTime
-                y_data = chart_data[par]
-                error_bars = False
-                if par + "_err" in config.config['all_data'].columns[1:]:
-                    error_bars = True
-                    y_error = chart_data[par + "_err"]
+                if trace.name in traces_info[plot.id]:
+                    par = config.config['plot_pars'][plot_set].query(
+                        "plot == '" + plot_name + "'").query(
+                        "parameter_lab == '" + trace.name + "'")['parameter'][0]
+                    par_info = config.config['plot_pars'][plot_set].query('parameter == "' + par + '"')
+                    x_data = chart_data.DateTime
+                    y_data = chart_data[par]
+                    error_bars = False
+                    if par + "_err" in config.config['all_data'].columns[1:]:
+                        error_bars = True
+                        y_error = chart_data[par + "_err"]
 
-                if trace.mode == "markers" or trace.line.shape == "hv":
-                    if error_bars:
-                        y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
-                    x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
-                    y_data.drop(y_data[np.isnan(y_data)].index, inplace=True)
-                trace.x = x_data
-                trace.y = y_data
-                if trace.mode == "markers":
-                    trace.update(error_y = dict(type = 'data', visible = True, array = y_error, color = par_info['colour'][0]))
-                if trace.mode == "none" and par_info['ribbon'][0]:
-                    trace.y = y_data - y_error
-                if trace.line.width == 0 and par_info['ribbon'][0]:
-                    trace.y = y_data + y_error
-                if trace.line.shape == "hv" and par_info['bar'][0]:
-                    trace.y = par_info['bar_order'][0] + y_data.round()/2
-                if trace.mode == "none" and par_info['bar'][0]:
-                    trace.y = par_info['bar_order'][0] - y_data.round()/2
+                    if trace.mode == "markers" or trace.line.shape == "hv":
+                        if error_bars:
+                            y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
+                        x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
+                        y_data.drop(y_data[np.isnan(y_data)].index, inplace=True)
+                    trace.x = x_data
+                    trace.y = y_data
+                    if trace.mode == "markers":
+                        trace.update(error_y = dict(type = 'data', visible = True, array = y_error, color = par_info['colour'][0]))
+                    if trace.mode == "none" and par_info['ribbon'][0]:
+                        trace.y = y_data - y_error
+                    if trace.line.width == 0 and par_info['ribbon'][0]:
+                        trace.y = y_data + y_error
+                    if trace.line.shape == "hv" and par_info['bar'][0]:
+                        trace.y = par_info['bar_order'][0] + y_data.round()/2
+                    if trace.mode == "none" and par_info['bar'][0]:
+                        trace.y = par_info['bar_order'][0] - y_data.round()/2
             plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=False)
             plot.style['height'] = str(height) + 'vh'
             if plot.id == plots[len(plots)-1]:
