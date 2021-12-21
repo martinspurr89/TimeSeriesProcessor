@@ -17,6 +17,10 @@ import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
 import re
+import webbrowser
+from threading import Timer
+import dash_datetimepicker
+import dash_bootstrap_components as dbc
 
 import config
 import ProcessData_resampler as ProcessData
@@ -47,14 +51,14 @@ ProcessData.processArguments()
 getConfigData()
 print("Config imported!")
 
-external_stylesheets = ['https://codepen.io/chriddyp/pen/bWLwgP.css']
+external_stylesheets = [dbc.themes.BOOTSTRAP]#, 'https://codepen.io/chriddyp/pen/bWLwgP.css']
 #app = JupyterDash('__name__')
 app = dash.Dash(__name__, external_stylesheets=external_stylesheets)
 
 image_filename = 'assets\ToOL-PRO-BES.png'
 encoded_image = base64.b64encode(open(image_filename, 'rb').read())
 
-card_style = {"box-shadow": "0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12), 0 2px 4px -1px rgba(0,0,0,0.3)"}
+#card_style = {"box-shadow": "0 4px 5px 0 rgba(0,0,0,0.14), 0 1px 10px 0 rgba(0,0,0,0.12), 0 2px 4px -1px rgba(0,0,0,0.3)"}
 
 #app.scripts.config.serve_locally = True
 
@@ -105,7 +109,6 @@ end = max(config.config['all_data'].DateTime)
 ###
 
 ##APP##
-CreateCharts.startT()
 app.layout = html.Div(children=[
     #html.Div([html.Img(src=app.get_asset_url('ToOL-PRO-BES.png'), style={'width':'90%', 'max-width': '100%'})], style={'textAlign': 'center'}),
     html.Div([html.Img(src='data:image/png;base64,{}'.format(encoded_image.decode()), style={'width':'75%', 'max-width': '100%'})], style={'textAlign': 'center'}),
@@ -115,9 +118,16 @@ app.layout = html.Div(children=[
             value="tab-0",
             children=tabs_init),
         html.Div(children=[
-            html.Div(children=[
-                dcc.Loading(id='slider-content'),
+            html.Div([dbc.Card([
+                    html.Div(children=[
+                        dash_datetimepicker.DashDatetimepicker(id="datetime-picker", startDate=start, endDate=end, utc=True, locale="en-gb"),
+                    ]),
+                    html.Div(children=[
+                        dcc.Loading(id='slider-content')
+                    ])
+                ])
             ]),
+
             html.Div(children=[
                 dcc.Loading(id='plot_chooser-content'),
             ], className="six columns"),
@@ -133,7 +143,9 @@ app.layout = html.Div(children=[
             html.Div(children=[
                 html.I("Resample: "),
                 dcc.RadioItems(
+                    id="resample_radio",
                     options=[
+                        {'label': 'Set', 'value': 'SET'},
                         {'label': 'Low', 'value': 'LOW'},
                         {'label': 'High', 'value': 'HIGH'}
                     ],
@@ -141,7 +153,7 @@ app.layout = html.Div(children=[
                     labelStyle={'display': 'inline-block'}
                 )
             ], className="two columns"),
-            html.Div(children=[
+            html.Div(id="resample_div",children=[
                 html.I("Resample: "),
                 dcc.Input(
                     id="resample_set", type="number", placeholder="Resample set input",
@@ -162,6 +174,17 @@ app.layout = html.Div(children=[
 
 ##CALLBACKS##
 
+#DATETIME PICKER
+@app.callback(
+    Output('date_slider', 'value'),
+    [Input('datetime-picker', 'startDate'),
+    Input('datetime-picker', 'endDate')])
+def datetime_range(startDate, endDate):
+    startDate = pd.to_datetime(startDate)
+    endDate = pd.to_datetime(endDate)
+    return [unixTimeMillis(startDate), unixTimeMillis(endDate)]
+
+
 #SLIDER
 @app.callback(
     Output('slider-content', 'children'),
@@ -171,7 +194,7 @@ def update_slider(tab):
     start = min(config.config['all_data'].DateTime)
     end = max(config.config['all_data'].DateTime)
 
-    content = [html.Label(rangeString(start, end), id='time-range-label')]
+    content = []
     content.append(html.Div(id='loading', children=
         dcc.RangeSlider(
             id='date_slider',
@@ -191,6 +214,28 @@ def update_slider(tab):
     [Input('date_slider', 'value')])
 def _update_time_range_label(dates_selected):
     return rangeString(dates_selected[0], dates_selected[1])
+
+@app.callback(
+    Output('datetime-picker', 'startDate'),
+    [Input('date_slider', 'value')])
+def _update_time_range_label(dates_selected):
+    return unixToDatetime(dates_selected[0])
+
+@app.callback(
+    Output('datetime-picker', 'endDate'),
+    [Input('date_slider', 'value')])
+def _update_time_range_label(dates_selected):
+    return unixToDatetime(dates_selected[1])
+
+#RESAMPLER
+@app.callback(
+    Output('resample_div', 'style'),
+    [Input('resample_radio', 'value')])
+def disableinput(value):
+    if value == 'SET':
+        return {'display': 'block'}
+    else:
+        return {'display': 'none'}
 
 #PLOT CHOOSER
 @app.callback(
@@ -226,7 +271,6 @@ def render_content(n_clicks, tab_click, tab, dates_selected, plots, height, resa
     chart_data = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
     chart_data = chart_data.reset_index()
 
-    CreateCharts.endT()
     for plot in config.config['dcc_plot_set_figs'][tab_ids[tab]]:
         if plot.id in plots:
             plot_name = config.config['dcc_plot_names'][tab_ids[tab]][plot.id]
@@ -273,8 +317,6 @@ print("App ready at: " + str(finish) + " (" + str(finish - begin) + ")")
 
 port = 8050 # or simply open on the default `8050` port
 
-import webbrowser
-from threading import Timer
 def open_browser():
 	webbrowser.open_new("http://localhost:{}".format(port))
 
