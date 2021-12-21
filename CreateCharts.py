@@ -1,34 +1,17 @@
 # Import packages
-import sys
-import getopt
 import os
-from pathlib import Path
 from tqdm.autonotebook import tqdm
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
-from pytz import timezone, utc
+from datetime import datetime
+from pytz import timezone
 import bz2
 import pickle
 import plotly.graph_objects as go
-from plotly_resampler import FigureResampler
 from dash import dcc
 
 import config
 import ProcessData_resampler as ProcessData
-
-def getNow():
-    return datetime.now(timezone('UTC')).replace(microsecond=0)
-
-def startT(desc=""):
-    global start
-    start = getNow()
-    print(desc, start)
-
-def endT(desc=""):
-    global start
-    end = getNow() - start
-    print(desc, end)
 
 def getData():
     pfile_path = config.io_dir / "Output" / 'all_data.pbz2'
@@ -72,11 +55,6 @@ def getPlotSetInfo(plot_set):
     plot_set_info = config.config['info']['plots'].loc[config.config['info']['plots'].index == plot_set]
     plot_set_info = plot_set_info[plot_set_info['plot'].isin(config.config['plot_pars'][plot_set]['plot'].unique())]
     return(plot_set_info)
-
-def getChartInfo(chart):
-    chart_info = config.config['info']['plots'].loc[config.config['info']['plots'].index == chart]
-    chart_info = chart_info[chart_info['plot'].isin(config.config['chart_dfs_mlt'][chart].Plot.unique().tolist())]
-    return(chart_info)
 
 def addTrace(par, plot_fig, plot_set):
     par_info = config.config['plot_pars'][plot_set].query('parameter == "' + par + '"')
@@ -248,9 +226,7 @@ def main():
     for plot_set in pbar:
         pbar.set_description("Creating plot_set %s" % plot_set)
         plotParDicts(plot_set)
-        startT()
         config.config['plot_set_figs'][plot_set]  = createPlotSetFig(plot_set)
-        endT()
         config.config['dcc_plot_set_figs'][plot_set] = createDashCharts(plot_set)
 
         #pbar.set_description("Exporting chart %s" % plot_set)
