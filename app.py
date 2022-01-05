@@ -21,6 +21,7 @@ import webbrowser
 from threading import Timer
 import dash_datetimepicker
 import dash_bootstrap_components as dbc
+from copy import deepcopy
 
 import config
 import ProcessData_resampler as ProcessData
@@ -39,7 +40,7 @@ def getConfigData():
         for key in list(items.keys()):
             config.config[key] = items[key]
     else:
-        print("Fetching all data (or no pickled sub_config2.pbz2 file exists)")
+        print("Fetching all data (or no processed all_data.pbz2 or sub_config2.pbz2 files exist)")
         CreateCharts.main()
         config.update = True
         getConfigData()
@@ -110,16 +111,66 @@ def resampleAlert(value):
     else:
         return ""
 
-def calcResampler(resolution, set):
+def calcResampler(resolution, set, hi_res):
     if resolution == 'HIGH':
-        value = 15
+        value = hi_res
     elif resolution == 'LOW':
-        value = 60
+        if hi_res == 0:
+            value = 4
+        else:
+            value = hi_res*4
     elif resolution == 'NONE':
         value = 0
     elif resolution == 'SET':
         value = set
     return(value)
+
+def calcHiRes(dates_selected):
+        data_set = config.config['all_data'].query(
+            'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
+            'DateTime < "' + str(unixToDatetime(dates_selected[1])) + '"')
+        length = len(data_set)
+        return round(length/2800) #mins
+
+def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
+    plot_name = config.config['dcc_plot_names'][plot_set][plot.id]
+    for trace in plot.figure.data:
+        if trace.name in traces_info[plot.id]:
+            par = config.config['plot_pars'][plot_set].query(
+                "plot == '" + plot_name + "'").query(
+                "parameter_lab == '" + trace.name + "'")['parameter'][0]
+            par_info = config.config['plot_pars'][plot_set].query('parameter == "' + par + '"')
+            x_data = chart_data.DateTime
+            y_data = chart_data[par]
+            error_bars = False
+            y_error = None
+            if par + "_err" in config.config['all_data'].columns[1:]:
+                error_bars = True
+                y_error = chart_data[par + "_err"]
+
+            if trace.mode == "markers" or trace.line.shape == "hv":
+                if error_bars:
+                    y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
+                x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
+                y_data.drop(y_data[np.isnan(y_data)].index, inplace=True)
+            trace.x = x_data
+            trace.y = y_data
+            if trace.mode == "markers":
+                trace.update(error_y = dict(type = 'data', visible = True, array = y_error, color = par_info['colour'][0]))
+            if trace.mode == "none" and par_info['ribbon'][0]:
+                trace.y = y_data - y_error
+            if trace.line.width == 0 and par_info['ribbon'][0]:
+                trace.y = y_data + y_error
+            if trace.line.shape == "hv" and par_info['bar'][0]:
+                trace.y = par_info['bar_order'][0] + y_data.round()/2
+            if trace.mode == "none" and par_info['bar'][0]:
+                trace.y = par_info['bar_order'][0] - y_data.round()/2
+    plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=False)
+    plot.style['height'] = str(height) + 'vh'
+    if plot.id == plots[len(plots)-1]:
+        plot.figure.update_xaxes(showticklabels=True, ticks="outside")
+        plot.style['height'] = str(height + 5) + 'vh'
+    return plot
 
 
 plot_set = min(config.config['plot_sets'].values())
@@ -138,7 +189,8 @@ datetime_pick = html.Div(children=[
                 ], className='p-3', style = {'align-self': 'center'})
 
 datetime_slider = html.Div(children=[
-                         dbc.Spinner(id='slider-content', color="info")
+                        dcc.Store(id='hi_res'),
+                        dbc.Spinner(id='slider-content', color="info")
                      ], className='p-3')
 
 plot_set_dropdown = html.Div(
@@ -163,7 +215,7 @@ resampler_radio = html.Div(
                     {'label': 'None', 'value': 'NONE'},
                     {'label': 'Set', 'value': 'SET'},
                 ],
-                value='LOW',
+                value='HIGH',
                 inline=True
             )),
             dbc.Col(html.Div(dbc.Input(id='resample_set', type="number", min=1, step=1,
@@ -317,6 +369,13 @@ def _update_time_range_label(dates_selected):
 def _update_time_range_label(dates_selected):
     return unixToDatetime(dates_selected[1])
 
+#TIME RANGE END
+@app.callback(
+    Output('hi_res', 'value'),
+    [Input('load', 'value'), Input('date_slider', 'value')])
+def _update_time_range_label(load, dates_selected):
+    return calcHiRes(dates_selected)
+
 #RESAMPLE SET DISPLAY
 @app.callback(
     Output('resample_div', 'style'),
@@ -360,9 +419,11 @@ def disableinput(value):
 #CALC/STORE RESAMPLER VAL
 @app.callback(
     Output('resampler', 'data'),
-    [Input('resample_radio', 'value'), Input('resample_set', 'value')])
-def calcResampling(resolution, set):
-    return calcResampler(resolution, set)
+    [Input('resample_radio', 'value'), Input('resample_set', 'value'), Input('date_slider', 'value')], State('hi_res', 'value'))
+def calcResampling(resolution, set, dates_selected, hi_res):
+    if hi_res == None:
+        hi_res = calcHiRes(dates_selected)
+    return calcResampler(resolution, set, hi_res)
 
 #UPDATE RESAMPLER ALERT
 @app.callback(
@@ -452,47 +513,16 @@ def render_content(n_clicks, plot_set_click, plot_set, dates_selected, plots, he
     content = []
     plots.sort() #sort alpha
     plots.sort(key=len) #sort by length (graph10+)
-    chart_data = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
+    chart_data = config.config['all_data'].query(
+            'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
+            'DateTime < "' + str(unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
+    if resample > 0:
+        chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
     chart_data = chart_data.reset_index()
 
-    for plot in config.config['dcc_plot_set_figs'][plot_set]:
-        if plot.id in plots:
-            plot_name = config.config['dcc_plot_names'][plot_set][plot.id]
-            for trace in plot.figure.data:
-                if trace.name in traces_info[plot.id]:
-                    par = config.config['plot_pars'][plot_set].query(
-                        "plot == '" + plot_name + "'").query(
-                        "parameter_lab == '" + trace.name + "'")['parameter'][0]
-                    par_info = config.config['plot_pars'][plot_set].query('parameter == "' + par + '"')
-                    x_data = chart_data.DateTime
-                    y_data = chart_data[par]
-                    error_bars = False
-                    if par + "_err" in config.config['all_data'].columns[1:]:
-                        error_bars = True
-                        y_error = chart_data[par + "_err"]
-
-                    if trace.mode == "markers" or trace.line.shape == "hv":
-                        if error_bars:
-                            y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
-                        x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
-                        y_data.drop(y_data[np.isnan(y_data)].index, inplace=True)
-                    trace.x = x_data
-                    trace.y = y_data
-                    if trace.mode == "markers":
-                        trace.update(error_y = dict(type = 'data', visible = True, array = y_error, color = par_info['colour'][0]))
-                    if trace.mode == "none" and par_info['ribbon'][0]:
-                        trace.y = y_data - y_error
-                    if trace.line.width == 0 and par_info['ribbon'][0]:
-                        trace.y = y_data + y_error
-                    if trace.line.shape == "hv" and par_info['bar'][0]:
-                        trace.y = par_info['bar_order'][0] + y_data.round()/2
-                    if trace.mode == "none" and par_info['bar'][0]:
-                        trace.y = par_info['bar_order'][0] - y_data.round()/2
-            plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=False)
-            plot.style['height'] = str(height) + 'vh'
-            if plot.id == plots[len(plots)-1]:
-                plot.figure.update_xaxes(showticklabels=True, ticks="outside")
-                plot.style['height'] = str(height + 5) + 'vh'
+    for plot_orig in config.config['dcc_plot_set_figs'][plot_set]:
+        if plot_orig.id in plots:
+            plot = addDatatoPlot(deepcopy(plot_orig), traces_info, chart_data, dates_selected, plots, height)
             content.append(html.Div(id='loading', children=plot))
     return html.Div(id='loading', children=content)
 

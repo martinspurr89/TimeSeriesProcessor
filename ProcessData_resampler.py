@@ -148,7 +148,15 @@ def processCharts(df):
         df.loc[chart, 'chart_range_window'] = chart_range[1] - chart_range[0]
         if df.loc[chart, 'chart_status'] == "ON":
             config.config['charts'][chart] = df.loc[chart, 'chart']
-            config.config['plot_sets'][chart] = df.loc[chart, 'plot_set']
+            config.config['chart_plot_sets'][chart] = df.loc[chart, 'plot_set']
+    return df
+
+def processPlots(df):
+    config.config['plot_sets'] = [int(s.replace("selected_plot_","")) for s in row.keys() if "selected" in s]
+    for plot, row in df.iterrows():
+        for plot_set in config.config['plot_sets']:
+            if not pd.isna(row["selected_plot_" + str(plot_set)]):
+                print()
     return df
 
 def createParPlotDict():
@@ -172,6 +180,7 @@ def openinfoFile():
     config.config['info'] = pd.read_excel(config.io_dir / info_fname, sheet_name=None, index_col=0)
     config.config['info']['setup'] = processSetup(config.config['info']['setup'])
     config.config['info']['charts'] = processCharts(config.config['info']['charts'])
+    config.config['plot_sets'] = processPlots(config.config['info']['plots'])
     createParPlotDict()
     config.config['info']['colours'] = processColours(config.config['info']['colours'])
 
