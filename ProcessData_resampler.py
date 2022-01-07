@@ -152,20 +152,26 @@ def processCharts(df):
     return df
 
 def processPlots(df):
-    config.config['plot_sets'] = [int(s.replace("selected_plot_","")) for s in row.keys() if "selected" in s]
-    for plot, row in df.iterrows():
-        for plot_set in config.config['plot_sets']:
-            if not pd.isna(row["selected_plot_" + str(plot_set)]):
-                print()
+    selected_cols = [s for s in df.columns if "selected" in s]
+    df[selected_cols] = df[selected_cols].astype("Int64")
+    config.config['plot_sets'] = [int(s.replace("selected_plot_set_","")) for s in selected_cols]
+    for plot_set in config.config['plot_sets']:
+        config.config['plot_set_plots'][plot_set] = {}
+        for plot, row in df.iterrows():
+            if not pd.isna(row["selected_plot_set_" + str(plot_set)]):
+                config.config['plot_set_plots'][plot_set][plot] = []
     return df
 
-def createParPlotDict():
-    pars = config.config['info']['parameters']['parameter'].to_list() + config.config['info']['parameters_ave']['parameter_ave'].to_list()
-    plots = config.config['info']['parameters']['plot'].to_list() + config.config['info']['parameters_ave']['plot'].to_list()
+def createParPlotDict(df, df_ave):
+    pars = df['parameter'].to_list() + df_ave['parameter_ave'].to_list()
+    plots = df['plot'].to_list() + df_ave['plot'].to_list()
     config.config['par_plot_dict'] = dict(zip(pars, plots))
 
     for style in config.config['styles']:
-        config.config['par_style_dict'][style] = config.config['info']['parameters'].query(style + ' == True')['parameter'].to_list() + config.config['info']['parameters_ave'].query(style + ' == True')['parameter_ave'].to_list()
+        config.config['par_style_dict'][style] = df.query(style + ' == True')['parameter'].to_list() + df_ave.query(style + ' == True')['parameter_ave'].to_list()
+
+def processPars(df, df_ave):
+    createParPlotDict(df, df_ave)
 
 def processColours(df):
     df['rgb'] = list(zip(
@@ -180,15 +186,15 @@ def openinfoFile():
     config.config['info'] = pd.read_excel(config.io_dir / info_fname, sheet_name=None, index_col=0)
     config.config['info']['setup'] = processSetup(config.config['info']['setup'])
     config.config['info']['charts'] = processCharts(config.config['info']['charts'])
-    config.config['plot_sets'] = processPlots(config.config['info']['plots'])
-    createParPlotDict()
+    config.config['info']['plots'] = processPlots(config.config['info']['plots'])
+    processPars(config.config['info']['parameters'],  config.config['info']['parameters_ave'])
     config.config['info']['colours'] = processColours(config.config['info']['colours'])
 
 # Data import functions
 def selectDatasets():
     selected_plots = []
-    for plot in set(config.config['plot_sets'].values()):
-        selected_plots.append("selected_plot_" + str(plot))
+    for plot_set in set(config.config['plot_sets']):
+        selected_plots.append("selected_plot_set_" + str(plot_set))
         
     selected_pars_inc = config.config['info']['parameters'][selected_plots].isin([1]).any(axis=1)
     selected_pars = list(config.config['info']['parameters'][selected_pars_inc]['parameter'].values)
@@ -247,7 +253,9 @@ def importFiles(dataset, folder):
     file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['file_pat'][dataset]
     files_imported = config.config['files_imported'][dataset][folder]
     dataset_in_folder = []
-    for filename in tqdm(os.listdir(data_folder_path), desc="Open files to import"):
+    pbar = tqdm(os.listdir(data_folder_path))
+    for filename in pbar:
+        pbar.set_description("Open files to import: %s" % dataset)
         if re.search(file_pat, filename) and not filename.startswith('.'):
             if filename not in files_imported:
                 df = readFile(dataset, folder, filename)
@@ -349,6 +357,8 @@ def processAllData():
     cols = list(df)
     cols.insert(0, cols.pop(cols.index('DateTime')))
     df = df.loc[:, cols]
+
+    df.dropna(how='all', axis=1, inplace=True)
 
     return df
 

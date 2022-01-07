@@ -40,7 +40,7 @@
 			{
 				"name": "Debug Tests",
 				"type": "python",
-				"request": "test",
+				"request": "launch",
 				"console": "integratedTerminal",
 				"pythonPath": "C:/Users/nms198/OneDrive - Newcastle University/3_Coding/Python/conda-env/python.exe"
 

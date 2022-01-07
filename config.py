@@ -16,6 +16,7 @@ config['date_end'] = datetime(2020, 1, 1, 1, 0, 0, tzinfo=utc)
 config['charts'] = {}
 config['chart_plot_sets'] = {}
 config['plot_sets'] = []
+config['plot_set_plots'] = {}
 config['files_imported'] = {}
 config['supporting_data_dict'] = {}
 config['selected_pars'] = []

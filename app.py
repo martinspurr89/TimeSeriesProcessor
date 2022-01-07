@@ -40,7 +40,8 @@ def getConfigData():
         for key in list(items.keys()):
             config.config[key] = items[key]
     else:
-        print("Fetching all data (or no processed all_data.pbz2 or sub_config2.pbz2 files exist)")
+        if config.update:
+            print("No processed all_data.pbz2 or sub_config2.pbz2 files exist")
         CreateCharts.main()
         config.update = True
         getConfigData()
@@ -66,14 +67,15 @@ encoded_image = base64.b64encode(open(image_filename, 'rb').read())
 tabs_init = []
 plot_sets_dict = {}
 t = 0
-for plot_set in set(config.config['plot_sets'].values()):
+for plot_set in set(config.config['plot_sets']):
     plot_set_name = config.config['info']['charts']['chart_label'][plot_set]
     plot_sets_dict[t] = {'name':plot_set_name, 'plot_set':plot_set}
     t += 1
 
-diff = datetime.now(timezone('UTC')) - config.config['date_end']
-last_date = humanize.naturaldelta(diff)
-update_text = html.Div(html.P('Data last retrieved ' + last_date + ' ago'))
+def update_text():
+    diff = datetime.now(timezone('UTC')) - config.config['date_end']
+    last_date = humanize.naturaldelta(diff)
+    return html.Div(html.P('Data last retrieved ' + last_date + ' ago'))
 
 ###
 
@@ -133,13 +135,13 @@ def calcHiRes(dates_selected):
         return round(length/2800) #mins
 
 def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
-    plot_name = config.config['dcc_plot_names'][plot_set][plot.id]
+    plot_name = config.config['dcc_plot_names'][plot.id]
     for trace in plot.figure.data:
         if trace.name in traces_info[plot.id]:
-            par = config.config['plot_pars'][plot_set].query(
+            par = config.config['plot_pars'].query(
                 "plot == '" + plot_name + "'").query(
                 "parameter_lab == '" + trace.name + "'")['parameter'][0]
-            par_info = config.config['plot_pars'][plot_set].query('parameter == "' + par + '"')
+            par_info = config.config['plot_pars'].query('parameter == "' + par + '"')
             x_data = chart_data.DateTime
             y_data = chart_data[par]
             error_bars = False
@@ -172,15 +174,35 @@ def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
         plot.style['height'] = str(height + 5) + 'vh'
     return plot
 
+def getPlots(plot_set):
+    plots = {}
+    for plot_name in config.config['plot_set_plots'][plot_set].keys():
+        for plot in config.config['dcc_plot_set_figs']:
+            if plot_name == plot.id:  
+                plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+    return plots
 
-plot_set = min(config.config['plot_sets'].values())
+def getTraces(plot_set):
+    plots = {}
+    for plot_name in config.config['plot_set_plots'][plot_set].keys():
+        for plot in config.config['dcc_plot_set_figs']:
+            if plot_name == plot.id:  
+                plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+    return plots
+
+all_plots = {}
+for plot_id in config.config['dcc_plot_names'].keys():
+    plot_name = config.config['dcc_plot_names'][plot_id]
+    all_plots[plot_id] = re.sub('<.*?>', ' ', config.config['info']['plots']['ylab'][plot_name])
+
+plot_set = min(config.config['plot_sets'])
 start = min(config.config['all_data'].DateTime)
 end = max(config.config['all_data'].DateTime)
 def_resample = 15
 
 header_card = dbc.Card([
                 dbc.CardImg(src=image_filename, top=True),
-                html.P(update_text, className="card-text", style={'textAlign': 'left'}, id='load'),
+                html.P(update_text(), className="card-text", style={'textAlign': 'left'}, id='load'),
                 ], className = 'px-3')
 
 datetime_pick = html.Div(children=[
@@ -198,8 +220,9 @@ plot_set_dropdown = html.Div(
         dbc.Select(
             id='plot_set_drop',
             options=[
-                {"label": 'Plot Set ' + str(plot_set), "value": plot_set} for plot_set in set(config.config['plot_sets'].values())],
-            value=plot_set,
+                {"label": 'Plot Set ' + str(plot_set), "value": plot_set} for plot_set in set(config.config['plot_sets'])] + 
+                [{'label': 'Plot Set Custom', 'value': -1}],
+            value=str(plot_set),
         ),
     ], className='p-3', style={'textAlign': 'left'}
 )
@@ -261,6 +284,9 @@ offcanvas = html.Div(
             id="open-offcanvas-scrollable",
             n_clicks=0,
         ),
+        dcc.Store(id='plot_set_store', data=plot_set),
+        dcc.Store(id='plots_store', data = getPlots(plot_set)),
+        dcc.Store(id='traces_store', data = getTraces(plot_set)),
         dbc.Offcanvas([
                 dbc.Spinner(id='plot_chooser-content', color="primary"),
                 dbc.Spinner(id='trace_chooser-content', color="primary"),
@@ -369,11 +395,11 @@ def _update_time_range_label(dates_selected):
 def _update_time_range_label(dates_selected):
     return unixToDatetime(dates_selected[1])
 
-#TIME RANGE END
+#INITIAL RES
 @app.callback(
     Output('hi_res', 'value'),
     [Input('load', 'value'), Input('date_slider', 'value')])
-def _update_time_range_label(load, dates_selected):
+def _update_res_val(load, dates_selected):
     return calcHiRes(dates_selected)
 
 #RESAMPLE SET DISPLAY
@@ -442,20 +468,34 @@ def toggle_offcanvas_scrollable(n1, is_open):
         return not is_open
     return is_open
 
-#PLOT CHOOSER
+#PLOT SET VAL
+@app.callback(
+    Output('plot_set_store', 'data'),
+    [Input('plot_set_drop', 'value')], State('plot_set_drop', 'value'))
+def plot_set_val(drop, plot_set_str):
+    return int(plot_set_str)
+
+#PLOT SET CHOSEN - SET PLOTS
+@app.callback(
+    Output('plots_store', 'data'),
+    [Input('plot_set_store', 'data'), Input('plot_chooser', 'value')],
+    [State('plots_store', 'data')])
+def update_plot_chooser(plot_set, plots, content_old):
+    if plot_set != -1:
+        return getPlots(plot_set)
+    else:
+        return content_old
+
+#PLOT CHOOSER UPDATE
 @app.callback(
     Output('plot_chooser-content', 'children'),
-    [Input('plot_set_drop', 'value')])
-def update_plot_chooser(plot_set):
-    plots = {}
-    for plot in config.config['dcc_plot_set_figs'][plot_set]:
-        plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
-
+    [Input('plots_store', 'data')])
+def update_plot_chooser(plots):
     content = [dbc.CardHeader("Select Plots:", className="card-title",)]
     content.append(html.Div(
         dbc.Checklist(
             id='plot_chooser',
-            options=[{'label':plots[plot], 'value':plot} for plot in plots],
+            options=[{'label':all_plots[plot], 'value':plot} for plot in all_plots],
             value=list(plots.keys()),
             inline=True,
         ), className="p-3", id='loading2'),
@@ -463,45 +503,114 @@ def update_plot_chooser(plot_set):
     content_card = dbc.Row(dbc.Col(dbc.Card(content)))
     return content_card
 
-#TRACE CHOOSER
-@app.callback(
+
+#PLOT SET CHOSEN - SET TRACES
+# @app.callback(
+#     Output('traces_store', 'data'),
+#     [Input('plot_set_store', 'data')],
+#     [State('traces_store', 'data')])
+# def update_trace_chooser(plot_set, content_old):
+#     if plot_set != -1:
+#         return getTraces(plot_set)
+#     else:
+#         return content_old
+
+#TRACE SET CHOSEN
+""" @app.callback(
     Output('trace_chooser-content', 'children'),
-    [Input('plot_chooser', 'value')], [State('plot_set_drop', 'value'), State('plot_chooser', 'value')])
-def update_trace_chooser(n1, plot_set, plots):
-    plots.sort() #sort alpha
-    plots.sort(key=len) #sort by length (graph10+)
+    [Input('plot_set_store', 'data')],
+    [State('plot_chooser', 'value'), State('trace_chooser-content', 'children')])
+def update_trace_chooser(plot_set, plots, content_old):
+    if plot_set != -1:
+        plots.sort() #sort alpha
+        plots.sort(key=len) #sort by length (graph10+)
+        
+        card_contents = [dbc.CardHeader("Select traces:", className="card-title",)]
+        for plot in config.config['dcc_plot_set_figs']:
+            if plot.id in plots:
+                plot_name = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+                content = [dbc.CardHeader(plot_name, className="card-title",)]
+                traces = list(set(trace.name for trace in plot.figure.data))
+                traces.sort()
+                content.append(html.Div(
+                    dbc.Checklist(
+                        id=plot.id + '_traces',
+                        options=[{'label':trace, 'value':trace} for trace in traces],
+                        value=traces,
+                        inline=True,
+                        input_checked_style={
+                            "backgroundColor": "#fa7268",
+                            "borderColor": "#ea6258",
+                        },
+                    ), className="p-3"))
+                card_contents.append(dbc.Col(content, className = 'px-3'))
+        #for plot in config.config['dcc_plot_set_figs'][plot_set]:
+        #    plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+        #card = sum(card_contents, [])
+
+        return dbc.Row(dbc.Card(card_contents, id='trace_chooser'))
+    else:
+        return content_old
+ """
+#TRACE CHOOSER
+# @app.callback(
+#     Output('trace_chooser-content', 'children'),
+#     [Input('plot_chooser', 'value')], [State('plot_set_store', 'data'), State('plot_chooser', 'value')])
+# def update_trace_chooser(n1, plot_set, plots):
+#     plots.sort() #sort alpha
+#     plots.sort(key=len) #sort by length (graph10+)
     
-    card_contents = [dbc.CardHeader("Select traces:", className="card-title",)]
-    for plot in config.config['dcc_plot_set_figs'][plot_set]:
-        if plot.id in plots:
-            plot_name = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
-            content = [dbc.CardHeader(plot_name, className="card-title",)]
-            traces = list(set(trace.name for trace in plot.figure.data))
-            traces.sort()
-            content.append(html.Div(
-                dbc.Checklist(
-                    id=plot.id + '_traces',
-                    options=[{'label':trace, 'value':trace} for trace in traces],
-                    value=traces,
-                    inline=True,
-                    input_checked_style={
-                        "backgroundColor": "#fa7268",
-                        "borderColor": "#ea6258",
-                    },
-                ), className="p-3"))
-            card_contents.append(dbc.Col(content, className = 'px-3'))
-    #for plot in config.config['dcc_plot_set_figs'][plot_set]:
-    #    plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
-    #card = sum(card_contents, [])
+#     card_contents = [dbc.CardHeader("Select traces:", className="card-title",)]
+#     for plot in config.config['dcc_plot_set_figs']:
+#         if plot.id in plots:
+#             plot_name = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+#             content = [dbc.CardHeader(plot_name, className="card-title",)]
+#             traces = list(set(trace.name for trace in plot.figure.data))
+#             traces.sort()
+#             content.append(html.Div(
+#                 dbc.Checklist(
+#                     id=plot.id + '_traces',
+#                     options=[{'label':trace, 'value':trace} for trace in traces],
+#                     value=traces,
+#                     inline=True,
+#                     input_checked_style={
+#                         "backgroundColor": "#fa7268",
+#                         "borderColor": "#ea6258",
+#                     },
+#                 ), className="p-3"))
+#             card_contents.append(dbc.Col(content, className = 'px-3'))
+#     #for plot in config.config['dcc_plot_set_figs'][plot_set]:
+#     #    plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
+#     #card = sum(card_contents, [])
 
-    return dbc.Row(dbc.Card(card_contents, id='trace_chooser'))
+#     return dbc.Row(dbc.Card(card_contents, id='trace_chooser'))
+""" 
+#UPDATE PLOT_SET DROP
+@app.callback(
+    Output('plot_set_drop', 'value'),
+    [Input('offcanvas-scrollable', 'is_open')],
+    [State('plot_set_store', 'data'), State('plot_chooser', 'value'), State('trace_chooser', 'children'), State('plot_set_drop', 'value')]
+)
+def update_plot_set_dropdown(is_open, plot_set, plots, traces, drop):
+    if not is_open:
+        traces_info = {}
+        for plot_id in range(1,len(traces)):
+            plot_name = traces[plot_id]['props']['children'][1]['props']['children']['props']['id']
+            plot_name = plot_name.replace("_traces", "")
+            traces_info[plot_name] = traces[plot_id]['props']['children'][1]['props']['children']['props']['value']
 
+        for plot_set in config.config['plot_sets']:
+            if traces_info == config.config['plot_set_plots'][plot_set]:
+                return str(plot_set)
+        return str(-1)
+    return drop
+ """
 #CHART
 @app.callback(Output('chart-content', 'children'),
-            [Input('submit_val', 'n_clicks'), Input('plot_set_drop', 'value')],
+            [Input('submit_val', 'n_clicks')],
             [State('plot_set_drop', 'value'), State('date_slider','value'), State('plot_chooser', 'value'),
             State('height_set', 'value'), State('resampler', 'data'), State('trace_chooser', 'children')])
-def render_content(n_clicks, plot_set_click, plot_set, dates_selected, plots, height, resample, traces):
+def render_content(n_clicks, plot_set, dates_selected, plots, height, resample, traces):
     #time.sleep(2)
     traces_info = {}
     for plot_id in range(1,len(traces)):
@@ -520,7 +629,7 @@ def render_content(n_clicks, plot_set_click, plot_set, dates_selected, plots, he
         chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
     chart_data = chart_data.reset_index()
 
-    for plot_orig in config.config['dcc_plot_set_figs'][plot_set]:
+    for plot_orig in config.config['dcc_plot_set_figs']:
         if plot_orig.id in plots:
             plot = addDatatoPlot(deepcopy(plot_orig), traces_info, chart_data, dates_selected, plots, height)
             content.append(html.Div(id='loading', children=plot))
@@ -537,6 +646,6 @@ def open_browser():
 
 if __name__ == '__main__':
     Timer(1, open_browser).start()
-    app.run_server(port=port)
+    app.run_server(port=port, debug=True)
 
 ####
