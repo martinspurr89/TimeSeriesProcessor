@@ -137,6 +137,14 @@ def calcHiRes(dates_selected):
 
 def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
     plot_name = config.config['dcc_plot_names'][plot.id]
+    if any(config.config['plot_pars'].query("plot == '" + plot_name + "'")['bar']):
+        plot_traces = traces_info[plot.id]
+        bars = list(config.config['plot_pars'].query(
+            "plot == '" + plot_name + "'").query(
+            "parameter_lab in @plot_traces")['bar_order'].unique())
+        bar_orders = {}
+        for b in range(0, len(bars), 1):
+            bar_orders[bars[b]] = len(bars) - 1 - b
     for trace in plot.figure.data:
         if trace.name in traces_info[plot.id]:
             par = config.config['plot_pars'].query(
@@ -151,7 +159,7 @@ def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
                 error_bars = True
                 y_error = chart_data[par + "_err"]
 
-            if trace.mode == "markers" or trace.line.shape == "hv":
+            if trace.mode == "markers" or trace.line.shape == "hv" or par_info['point'][0] or par_info['bar'][0]:
                 if error_bars:
                     y_error.drop(y_error[np.isnan(y_data)].index, inplace=True)
                 x_data.drop(x_data[np.isnan(y_data)].index, inplace=True)
@@ -165,13 +173,12 @@ def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
             if trace.line.width == 0 and par_info['ribbon'][0]:
                 trace.y = y_data + y_error
             if trace.line.shape == "hv" and par_info['bar'][0]:
-                trace.y = par_info['bar_order'][0] + y_data.round()/2
+                trace.y = bar_orders[par_info['bar_order'][0]] + y_data.round()/2
             if trace.mode == "none" and par_info['bar'][0]:
-                trace.y = par_info['bar_order'][0] - y_data.round()/2
+                trace.y = bar_orders[par_info['bar_order'][0]] - y_data.round()/2
     plot.figure.update_xaxes(range=[unixToDatetime(dates_selected[0]), unixToDatetime(dates_selected[1])], fixedrange=False)
     plot.style['height'] = str(height) + 'vh'
     if plot.id == list(plots.keys())[len(plots)-1]:
-        plot.figure.update_xaxes(showticklabels=True, ticks="outside")
         plot.style['height'] = str(height + 5) + 'vh'
     return plot
 
@@ -183,21 +190,25 @@ def getPlots(plot_set):
                 plots[plot.id] = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
     return plots
 
-def modifyPlot(plot_fig, plot):
+def modifyPlot(plot_fig, plot, plots, font):
     plot_info = config.config['info']['plots'].query("index == '" + plot + "'")
     plot_fig.figure.update_layout(
-        margin=dict(l=100, r=250, b=15, t=15, pad=10),
+        margin=dict(l=125, r=250, b=15, t=15, pad=10),
         template="simple_white",
         paper_bgcolor='rgba(0,0,0,0)',
+        legend_tracegroupgap=0,
         font=dict(
-            family="Arial",
-            #size=config.config['info']['charts']['font_size'][chart],
-            color="black"
+            family = "Arial",
+            size = font,
+            color = "black"
         ))
     plot_fig.figure.update_yaxes(title_text=plot_info['ylab'][0], mirror=True)
     plot_fig.figure.update_xaxes(showgrid=True, showticklabels=False, ticks="",
         showline=True, mirror=True,
         fixedrange=True) #prevent x zoom
+    if plot_fig.id == list(plots.keys())[len(plots)-1]:
+        plot_fig.figure.update_xaxes(showticklabels=True, ticks="outside", automargin=False)
+        plot_fig.figure.update_layout(margin=dict(l=125, r=250, b=60, t=15, pad=10))
     return(plot_fig)
 
 def getYMin(plot, chart_data, traces_info):
@@ -217,7 +228,7 @@ def getYMin(plot, chart_data, traces_info):
             else:
                 ymin = 1.05 * ymin
         elif any(config.config['plot_pars'].query('plot == "' + plot + '"')['bar']) > 0:
-            ymin = min(config.config['plot_pars'].query('plot == "' + plot + '"')['bar_order']) - 1
+            ymin = - 1
     else:
         ymin = plot_info['ymin'][0]
     return(ymin)
@@ -239,7 +250,10 @@ def getYMax(plot, chart_data, traces_info):
             else:
                 ymax = 0.95 * ymax
         elif any(config.config['plot_pars'].query('plot == "' + plot + '"')['bar']) > 0:
-            ymax = max(config.config['plot_pars'].query('plot == "' + plot + '"')['bar_order']) + 1
+            bars = list(config.config['plot_pars'].query(
+                "plot == '" + plot + "'").query(
+                "parameter_lab in @traces_info")['bar_order'].unique())
+            ymax = len(bars)
     else:
         ymax = plot_info['ymax'][0]
     return(ymax)
@@ -256,8 +270,21 @@ def setAxisRange(plot_fig, plot, chart_data, traces_info):
 
     if any(config.config['plot_pars'].query('plot == "' + plot + '"')['bar'].values == True):
         bar_dict = config.config['plot_pars'].query('plot == "' + plot + '"').set_index('bar_order')['parameter_lab'].to_dict()
-        tickvals_list = list(range(int(ymin)+1, int(ymax), 1))
-        ticktext_list = [bar_dict[k] for k in tickvals_list if k in bar_dict]
+        bars = list(config.config['plot_pars'].query(
+            "plot == '" + plot + "'").query(
+            "parameter_lab in @traces_info")['bar_order'].unique())
+        bar_orders = {}
+        for b in range(0, len(bars), 1):
+            bar_orders[bars[b]] = len(bars) - 1 - b
+        bar_dict2 = {}
+        for key in bar_orders:
+            bar_dict2[bar_orders[key]] = bar_dict[key]
+        
+        #tickvals_list = list(range(int(ymin)+1, int(ymax), 1))
+        #tickvals_list = list(config.config['plot_pars'].query('parameter_lab in @traces_info').query('plot == "' + plot + '"')['bar_order'].unique())
+        tickvals_list = list(bar_dict2.keys())
+        tickvals_list.sort()
+        ticktext_list = [bar_dict2[k] for k in tickvals_list if k in bar_dict2]
         plot_fig.figure.update_layout(
                 yaxis = dict(
                     tickmode = 'array',
@@ -265,7 +292,7 @@ def setAxisRange(plot_fig, plot, chart_data, traces_info):
                     ticktext = ticktext_list
                 )
             )
-        plot_fig.figure.update_yaxes(ticklabelposition="inside", ticks="inside")
+        plot_fig.figure.update_yaxes(ticklabelposition="inside", ticks="inside", automargin=False)
 
     return(plot_fig)
 
@@ -279,6 +306,8 @@ for plot_id in config.config['dcc_plot_names'].keys():
     plot_name = config.config['dcc_plot_names'][plot_id]
     all_traces[plot_id] = list(config.config['plot_pars'].query('plot == "' + plot_name + '"')['parameter_lab'].unique())
 
+charts = config.config['info']['charts'].query('chart_status == "ON"')
+chart = min(charts.index)
 plot_set = min(config.config['plot_sets'])
 start = min(config.config['all_data'].DateTime)
 end = max(config.config['all_data'].DateTime)
@@ -288,6 +317,18 @@ header_card = dbc.Card([
                 dbc.CardImg(src=image_filename, top=True),
                 html.P(update_text(), className="card-text", style={'textAlign': 'left'}, id='load'),
                 ], className = 'px-3')
+
+datetime_dropdown = html.Div(
+    [
+        dbc.Select(
+            id='datetime_drop',
+            options=[
+                {"label": 'DateTime range ' + str(chart), "value": chart} for chart in set(charts.index)] + 
+                [{'label': 'DateTime Custom range', 'value': -1}],
+            value=str(chart),
+        ),
+    ], className='p-3', style={'textAlign': 'left'}
+)
 
 datetime_pick = html.Div(children=[
                     dash_datetimepicker.DashDatetimepicker(id="datetime-picker", 
@@ -344,8 +385,17 @@ resampler_input = html.Div(
 height_input = html.Div(
     [
         dbc.Row([
-            dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Plot height", value=20, id='height_set'), width=8),
-            dbc.Col(html.P(" %"), width=1)
+            dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Plot height", value=20, id='height_set'), width=6),
+            dbc.Col(html.P(" %"), width=3)
+        ], justify="center"),
+    ], className='p-3', style={'textAlign': 'left'}
+)
+
+font_input = html.Div(
+    [
+        dbc.Row([
+            dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Font size", value=12, id='font_set'), width=6),
+            dbc.Col(html.P(" pt"), width=3)
         ], justify="center"),
     ], className='p-3', style={'textAlign': 'left'}
 )
@@ -388,46 +438,83 @@ offcanvas = html.Div(
 
 ##APP##
 def serve_layout():
-    return dbc.Container([
-        html.Div([
-                #HEADER
-                dbc.Row(dbc.Col([
+    return dbc.Container([ #Container
+        html.Div([ #Padding & alignment div
+            #HEADER
+            dbc.Row( #header row
+                dbc.Col([ #header col
                     header_card
-                ])),
+                ])
+            ),
 
-                #DATETIME
-                dbc.Row(dbc.Col(dbc.Card([
-                    dbc.CardHeader("DateTime Range", className="card-title",),
-                    datetime_pick,
-                    datetime_slider,
-                ], className="px-3"))),
+            #DATETIME
+            dbc.Row( #DT row
+                dbc.Col( #DT col
+                    dbc.Card([
+                        dbc.CardHeader("DateTime Range", className="card-title",),
+                        dbc.Row([dbc.Col(datetime_dropdown), dbc.Col(datetime_pick)]),
+                        dbc.Row([datetime_slider]),
+                    ])
+                )
+            ),
 
-                dbc.Row([
-                    dbc.Col(html.Div(dbc.Card([
-                        dbc.CardHeader("Select Plots", className="card-title",),
-                        plot_set_dropdown,
-                        offcanvas,
-                    ]))),
-                    dbc.Col(html.Div(dbc.Card([
-                        dbc.CardHeader("Resampling Resolution", className="card-title",),
-                        resampler_radio,
-                        resampler_input
-                    ]))),
-                    dbc.Col([dbc.Row([
-                        dbc.Col(html.Div(dbc.Card([
-                            dbc.CardHeader("Plot Height", className="card-title",),
-                            height_input,
-                        ]))),
-                        dbc.Col(html.Div(dbc.Card([
-                            dbc.CardHeader("Submit", className="card-title",),
-                            submit_input,
-                        ]))),
-                    ])]),
-                ], align='center'),
-            ], className="p-5", style={'textAlign': 'center'}),
-            dbc.Row([
-                dbc.Col(html.Div([dcc.Loading(id='chart-content'),])),
-            ], className = "g-0", style={'textAlign': 'center'}),
+            dbc.Row([ #Settings Row
+                dbc.Col([
+                    dbc.Row(
+                        html.Div(
+                            dbc.Card([
+                                dbc.CardHeader("Select Plots", className="card-title",),
+                                dbc.Row([dbc.Col(plot_set_dropdown),
+                                dbc.Col(offcanvas)]),
+                            ])
+                        )
+                    ),
+                    dbc.Row([
+                        dbc.Col([
+                            html.Div(
+                                dbc.Card([
+                                    dbc.CardHeader("Plot Height", className="card-title",),
+                                    height_input,
+                                ])
+                            )
+                        ]),
+                        dbc.Col([
+                            html.Div(
+                                dbc.Card([
+                                    dbc.CardHeader("Font Size", className="card-title",),
+                                    font_input,
+                                ])
+                            )
+                        ]),
+                    ])
+                ]),
+                dbc.Col(
+                    html.Div(
+                        dbc.Card([
+                            dbc.CardHeader("Resampling Resolution", className="card-title",),
+                            resampler_radio,
+                            resampler_input
+                        ])
+                    )
+                ),
+                dbc.Col([
+                    dbc.Row([
+
+                    ]),
+                    dbc.Row([
+                        html.Div(
+                            dbc.Card([
+                                dbc.CardHeader("Submit", className="card-title",),
+                                submit_input,
+                            ])
+                        )
+                    ]),
+                ])
+            ], align='start', justify='center'),
+        ], className="p-5", style={'textAlign': 'center'}),
+        dbc.Row([
+                    dbc.Col(html.Div([dcc.Loading(id='chart-content'),])),
+                ], className = "g-0", style={'textAlign': 'center'}),
     ], fluid=True)
 
 app.layout = serve_layout
@@ -695,8 +782,8 @@ def update_plot_set_dropdown(is_open, plot_set, plots, traces, drop):
 @app.callback(Output('chart-content', 'children'),
             [Input('submit_val', 'n_clicks')],
             [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
-            State('height_set', 'value'), State('resampler', 'data'), State('traces_store', 'data')])
-def render_content(n_clicks, plot_set, dates_selected, plots, height, resample, traces):
+            State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value')])
+def render_content(n_clicks, plot_set, dates_selected, plots, resample, traces, height, font):
     #time.sleep(2)
     content = []
     chart_data = config.config['all_data'].query(
@@ -710,7 +797,7 @@ def render_content(n_clicks, plot_set, dates_selected, plots, height, resample, 
         if plot_orig.id in plots:
             plot_name = config.config['dcc_plot_names'][plot_orig.id]
             plot = addDatatoPlot(deepcopy(plot_orig), traces, chart_data, dates_selected, plots, height)
-            plot = modifyPlot(plot, plot_name)
+            plot = modifyPlot(plot, plot_name, plots, font)
             plot = setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
             content.append(html.Div(id='loading', children=plot))
     return html.Div(id='loading', children=content)
@@ -726,6 +813,6 @@ def open_browser():
 
 if __name__ == '__main__':
     Timer(1, open_browser).start()
-    app.run_server(port=port, debug=True, use_reloader=False)
+    app.run_server(port=port)#, debug=True, use_reloader=False)
 
 ####

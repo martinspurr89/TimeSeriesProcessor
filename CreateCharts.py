@@ -259,6 +259,7 @@ def main():
 
     # # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pbz2'))
     export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'dcc_plot_set_figs', 'plot_pars', 'dcc_plot_names', 'plot_set_plots'] if k in config.config}
+    print("Exporting sub_config2.pbz2 to Output")
     saveObject(export_config, (config.io_dir / 'Output' / 'sub_config2.pbz2'))
 
 if __name__ == "__main__":

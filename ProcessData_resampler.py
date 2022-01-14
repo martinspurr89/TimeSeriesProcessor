@@ -318,7 +318,7 @@ def averageReps(df):
         warnings.filterwarnings('ignore', r'Degrees of freedom <= 0 for slice.')
         ave_cols = []
         if df is not None:
-            for col in df.columns[1:].to_list():
+            for col in tqdm(df.columns[1:].to_list(), desc="Averaging data"):
                 ave_col = config.config['info']['parameters'].query('parameter == "' + col + '"')['parameter_ave'][0]
                 if ave_col != col:
                     if ave_col not in ave_cols:
@@ -378,9 +378,11 @@ def main():
     config.config['all_data'] = processAllData() # all data combined and averaged
 
     all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
+    print("Exporting all_data_15Min.csv to Output")
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')
 
     # Create storage object with filename `processed_data`
+    print("Exporting all_data.pbz2 to Output")
     saveObject(config.config['all_data'], (config.io_dir / 'Output' / 'all_data.pbz2'))
 
 if __name__ == "__main__":
