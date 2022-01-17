@@ -24,9 +24,10 @@ import dash_bootstrap_components as dbc
 from copy import deepcopy
 import math
 
-import config
-import ProcessData_resampler as ProcessData
-import CreateCharts as CreateCharts
+import Scripts.config as config
+import Scripts.ProcessData_resampler as ProcessData
+import Scripts.CreateCharts as CreateCharts
+import Scripts.Callbacks as Callbacks
 
 def getConfigData():
     dfile_path = config.io_dir / "Output" / 'all_data.pbz2'
@@ -76,7 +77,7 @@ for plot_set in set(config.config['plot_sets']):
 def update_text():
     diff = datetime.now(timezone('UTC')) - config.config['date_end']
     last_date = humanize.naturaldelta(diff)
-    return html.Div(html.P('Data last retrieved ' + last_date + ' ago'))
+    return html.Div(html.P(config.config['info']['setup'].loc['project', 'value'] + ' | Data last retrieved ' + last_date + ' ago'))
 
 ###
 
@@ -106,11 +107,11 @@ def rangeString(start, end):
 
 def resampleAlert(value):
     if value == None:
-        return dbc.Alert("Set value for resampling in minutes", color="danger")
+        return dbc.Alert("Set value for resampling in minutes", color="danger", class_name = "mb-0")
     if value > 0:
-        return dbc.Alert('Resample every ' + str(value) + ' mins', color="light")
+        return dbc.Alert('Resample every ' + str(value) + ' mins', color="light", style = {'textAlign': 'left'}, class_name = "mb-0")
     elif value == 0:
-        return dbc.Alert('Data not resampled', color="warning")
+        return dbc.Alert('Data not resampled', color="warning", class_name = "mb-0")
     else:
         return ""
 
@@ -306,7 +307,7 @@ for plot_id in config.config['dcc_plot_names'].keys():
     plot_name = config.config['dcc_plot_names'][plot_id]
     all_traces[plot_id] = list(config.config['plot_pars'].query('plot == "' + plot_name + '"')['parameter_lab'].unique())
 
-charts = config.config['info']['charts'].query('chart_status == "ON"')
+charts = config.config['info']['charts']
 chart = min(charts.index)
 plot_set = min(config.config['plot_sets'])
 start = min(config.config['all_data'].DateTime)
@@ -318,27 +319,56 @@ header_card = dbc.Card([
                 html.P(update_text(), className="card-text", style={'textAlign': 'left'}, id='load'),
                 ], className = 'px-3')
 
+datetime_items = []
+for chart in set(charts.index):
+    datetime_items.append(dbc.DropdownMenuItem(str(chart)  + ": " + charts['chart_label'][chart], id={
+                        'type': 'chart_select',
+                        'index': "chart_" + str(chart),
+                    }))
+    datetime_items.append(html.P(
+            charts['chart_range_start'][chart].strftime("%d/%m/%Y %H:%M") + " ↔ " +
+            charts['chart_range_end'][chart].strftime("%d/%m/%Y %H:%M"),
+            className="text-muted px-4 mb-1",))
+
+pdf_page_sizes = []
+for size in ['A4', 'PPT']:
+    pdf_page_sizes.append(dbc.DropdownMenuItem(str(size)  + ": " + size, id={
+                        'type': 'pdf_size_select',
+                        'index': "size_" + str(size),
+                    }))
+    pdf_page_sizes.append(html.P(
+            size,
+            className="text-muted px-4 mb-1",))
+
+png_page_sizes = []
+for size in ['A4', 'PPT']:
+    png_page_sizes.append(dbc.DropdownMenuItem(str(size)  + ": " + size, id={
+                        'type': 'png_size_select',
+                        'index': "size_" + str(size),
+                    }))
+    png_page_sizes.append(html.P(
+            size,
+            className="text-muted px-4 mb-1",))
+
 datetime_dropdown = html.Div(
     [
-        dbc.Select(
+        dbc.DropdownMenu(
             id='datetime_drop',
-            options=[
-                {"label": 'DateTime range ' + str(chart), "value": chart} for chart in set(charts.index)] + 
-                [{'label': 'DateTime Custom range', 'value': -1}],
-            value=str(chart),
+            label="Chart Range",
+            children=datetime_items,
         ),
-    ], className='p-3', style={'textAlign': 'left'}
+    ], className='py-1 px-4', style={'textAlign': 'left'}
 )
 
 datetime_pick = html.Div(children=[
                     dash_datetimepicker.DashDatetimepicker(id="datetime-picker", 
                     startDate=start, endDate=end, utc=True, locale="en-gb"),
-                ], className='p-3', style = {'align-self': 'center'})
+                ], className='p-1', style = {'align-self': 'center'})
 
 datetime_slider = html.Div(children=[
                         dcc.Store(id='hi_res'),
                         dbc.Spinner(id='slider-content', color="info")
-                     ], className='p-3')
+                     ], className='p-1')
 
 plot_set_dropdown = html.Div(
     [
@@ -365,12 +395,12 @@ resampler_radio = html.Div(
                 ],
                 value='HIGH',
                 inline=True
-            )),
+            ), className='py-2'),
             dbc.Col(html.Div(dbc.Input(id='resample_set', type="number", min=1, step=1,
             placeholder="mins"), id="resample_div"), width=3),
         ], align="center"),
 
-    ], className='p-3'
+    ], className='py-1 px-3'
 )
 
 resampler_input = html.Div(
@@ -379,25 +409,86 @@ resampler_input = html.Div(
         dbc.Row([
             dbc.Col(html.Div(dbc.Spinner(id='resample_label')),)
         ]),
-    ], className='p-0', style={'textAlign': 'left'}
+    ], className='p-0', style={'textAlign': 'center'}
+)
+
+export_radio = html.Div(
+    [
+        dbc.Col([
+            dbc.Row(
+                dbc.Checklist(
+                id="export_radio",
+                options=[{'label': 'Offline HTML', 'value': 'HTML'}],
+                switch=True
+            )),
+            dbc.Row([
+                dbc.Col(dbc.Checklist(
+                    id="html_radio",
+                    options=[{'label': 'PDF', 'value': 'PDF'}],
+                    switch=True
+                )),
+                dbc.Col(dbc.Input(id='pdf_width', type="number", min=1, step=1,
+                placeholder="width")),
+                dbc.Col(dbc.Input(id='pdf_height', type="number", min=1, step=1,
+                placeholder="height")),
+                dbc.Col(dbc.DropdownMenu(
+                    id='pdf_size_drop',
+                    label="Preset",
+                    children=pdf_page_sizes,
+                ))
+            ], id="pdf_div"),
+            dbc.Row([
+                dbc.Col(dbc.Checklist(
+                    id="pdf_radio",
+                    options=[{'label': 'PNG', 'value': 'PNG'}],
+                    switch=True
+                )),
+                dbc.Col(dbc.Input(id='png_width', type="number", min=1, step=1,
+                placeholder="width")),
+                dbc.Col(dbc.Input(id='png_height', type="number", min=1, step=1,
+                placeholder="height")),
+                dbc.Col(dbc.DropdownMenu(
+                    id='png_size_drop',
+                    label="Preset",
+                    children=png_page_sizes,
+                ))
+            ], id="png_div"),
+            dbc.Row(
+            )
+        ]),
+
+    ], className='p-3', style = {'textAlign': 'left'}
+)
+
+export_input = html.Div(
+    [
+        dcc.Store(id='exporter'),
+        dbc.Row([
+            #dbc.Col(html.Div(dbc.Spinner(id='export_label'), style = {'align-self': 'center'}),)
+        ]),
+    ], className='p-0', style={'textAlign': 'center'}
 )
 
 height_input = html.Div(
     [
-        dbc.Row([
-            dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Plot height", value=20, id='height_set'), width=6),
-            dbc.Col(html.P(" %"), width=3)
-        ], justify="center"),
-    ], className='p-3', style={'textAlign': 'left'}
+            dbc.Row(html.P("Plot height: ")),
+            dbc.Row([
+                dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Plot height", value=20, id='height_set'), width=9),
+                dbc.Col(html.P(" %"), width=3)
+            ], justify="center")
+    ], className='py-1 px-3', style={'textAlign': 'left'}
 )
 
 font_input = html.Div(
     [
-        dbc.Row([
-            dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Font size", value=12, id='font_set'), width=6),
-            dbc.Col(html.P(" pt"), width=3)
-        ], justify="center"),
-    ], className='p-3', style={'textAlign': 'left'}
+        dbc.Col([
+            dbc.Row(html.P("Font size: ")),
+            dbc.Row([
+                dbc.Col(dbc.Input(type="number", min=1, step=1, placeholder="Font size", value=12, id='font_set'), width=9),
+                dbc.Col(html.P(" pt"), width=3)
+            ], justify="center")
+        ]),
+    ], className='py-1 px-3', style={'textAlign': 'left'}
 )
 
 submit_input = html.Div(
@@ -414,7 +505,7 @@ submit_input = html.Div(
 offcanvas = html.Div(
     [
         dbc.Button(
-            "Select plots",
+            "Select plots & traces",
             id="open-offcanvas-button",
             n_clicks=0,
         ),
@@ -452,7 +543,7 @@ def serve_layout():
                 dbc.Col( #DT col
                     dbc.Card([
                         dbc.CardHeader("DateTime Range", className="card-title",),
-                        dbc.Row([dbc.Col(datetime_dropdown), dbc.Col(datetime_pick)]),
+                        dbc.Row([dbc.Col(datetime_dropdown), dbc.Col(datetime_pick), dbc.Col()]),
                         dbc.Row([datetime_slider]),
                     ])
                 )
@@ -463,43 +554,33 @@ def serve_layout():
                     dbc.Row(
                         html.Div(
                             dbc.Card([
-                                dbc.CardHeader("Select Plots", className="card-title",),
+                                dbc.CardHeader("Select plots", className="card-title",),
                                 dbc.Row([dbc.Col(plot_set_dropdown),
                                 dbc.Col(offcanvas)]),
                             ])
                         )
                     ),
                     dbc.Row([
-                        dbc.Col([
-                            html.Div(
-                                dbc.Card([
-                                    dbc.CardHeader("Plot Height", className="card-title",),
-                                    height_input,
-                                ])
-                            )
-                        ]),
-                        dbc.Col([
-                            html.Div(
-                                dbc.Card([
-                                    dbc.CardHeader("Font Size", className="card-title",),
-                                    font_input,
-                                ])
-                            )
-                        ]),
+                        html.Div(
+                            dbc.Card([
+                                dbc.CardHeader("Display Settings", className="card-title",),
+                                dbc.Row([
+                                    dbc.Col(height_input),
+                                    dbc.Col(font_input)
+                                ]),
+                            ])
+                        )
                     ])
                 ]),
-                dbc.Col(
-                    html.Div(
-                        dbc.Card([
-                            dbc.CardHeader("Resampling Resolution", className="card-title",),
-                            resampler_radio,
-                            resampler_input
-                        ])
-                    )
-                ),
                 dbc.Col([
                     dbc.Row([
-
+                        html.Div(
+                            dbc.Card([
+                                dbc.CardHeader("Resampling Resolution", className="card-title",),
+                                resampler_radio,
+                                resampler_input
+                            ])
+                        )
                     ]),
                     dbc.Row([
                         html.Div(
@@ -509,9 +590,21 @@ def serve_layout():
                             ])
                         )
                     ]),
+                ]),
+                dbc.Col([
+                    
+                    dbc.Row([
+                        html.Div(
+                        dbc.Card([
+                            dbc.CardHeader("Export Settings", className="card-title",),
+                            export_radio,
+                            export_input
+                        ])
+                    )
+                    ]),
                 ])
             ], align='start', justify='center'),
-        ], className="p-5", style={'textAlign': 'center'}),
+        ], className="p-5 mb-0", style={'textAlign': 'center'}),
         dbc.Row([
                     dbc.Col(html.Div([dcc.Loading(id='chart-content'),])),
                 ], className = "g-0", style={'textAlign': 'center'}),
@@ -525,8 +618,15 @@ app.layout = serve_layout
 @app.callback(
     Output('date_slider', 'value'),
     [Input('datetime-picker', 'startDate'),
-    Input('datetime-picker', 'endDate')])
-def datetime_range(startDate, endDate):
+    Input('datetime-picker', 'endDate'), Input({'type': 'chart_select', 'index': ALL}, 'n_clicks')])
+def datetime_range(startDate, endDate, chart):
+    ctx = dash.callback_context
+    ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+    if "chart" in ctx_input:
+        chart = int(re.findall(r'\d+', ctx_input)[0])
+        startDate = charts['chart_range_start'][chart]
+        endDate = charts['chart_range_end'][chart]
+
     startDate = pd.to_datetime(startDate)
     endDate = pd.to_datetime(endDate)
     return [unixTimeMillis(startDate), unixTimeMillis(endDate)]
@@ -620,8 +720,7 @@ def disableinput(value):
     Output('resampler', 'data'),
     [Input('resample_radio', 'value'), Input('resample_set', 'value'), Input('date_slider', 'value')], State('hi_res', 'data'))
 def calcResampling(resolution, set, dates_selected, hi_res):
-    if hi_res == None:
-        hi_res = calcHiRes(dates_selected)
+    hi_res = calcHiRes(dates_selected)
     return calcResampler(resolution, set, hi_res)
 
 #UPDATE RESAMPLER ALERT
@@ -785,6 +884,9 @@ def update_plot_set_dropdown(is_open, plot_set, plots, traces, drop):
             State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value')])
 def render_content(n_clicks, plot_set, dates_selected, plots, resample, traces, height, font):
     #time.sleep(2)
+    sorted_keys = sorted(sorted(plots.keys()), key=len)
+    plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
+    
     content = []
     chart_data = config.config['all_data'].query(
             'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
