@@ -145,8 +145,6 @@ def processCharts(df):
         df.loc[chart, 'chart_range_start'] = chart_range[0]
         df.loc[chart, 'chart_range_end'] = chart_range[1]
         df.loc[chart, 'chart_range_window'] = chart_range[1] - chart_range[0]
-        config.config['charts'][chart] = df.loc[chart, 'chart']
-        config.config['chart_plot_sets'][chart] = df.loc[chart, 'plot_set']
     return df
 
 def processPlots(df):
@@ -159,17 +157,6 @@ def processPlots(df):
             if not pd.isna(row["selected_plot_set_" + str(plot_set)]):
                 config.config['plot_set_plots'][plot_set][plot] = []
     return df
-
-def createParPlotDict(df, df_ave):
-    pars = df['parameter'].to_list() + df_ave['parameter_ave'].to_list()
-    plots = df['plot'].to_list() + df_ave['plot'].to_list()
-    config.config['par_plot_dict'] = dict(zip(pars, plots))
-
-    for style in config.config['styles']:
-        config.config['par_style_dict'][style] = df.query(style + ' == True')['parameter'].to_list() + df_ave.query(style + ' == True')['parameter_ave'].to_list()
-
-def processPars(df, df_ave):
-    createParPlotDict(df, df_ave)
 
 def processColours(df):
     df['rgb'] = list(zip(
@@ -185,7 +172,6 @@ def openinfoFile():
     config.config['info']['setup'] = processSetup(config.config['info']['setup'])
     config.config['info']['charts'] = processCharts(config.config['info']['charts'])
     config.config['info']['plots'] = processPlots(config.config['info']['plots'])
-    processPars(config.config['info']['parameters'],  config.config['info']['parameters_ave'])
     config.config['info']['colours'] = processColours(config.config['info']['colours'])
 
 # Data import functions
@@ -207,12 +193,12 @@ def selectDatasets():
     config.config['selected_pars'] = list(set(selected_pars + selected_pars_ave + selected_reps))
     selected_pars_all_inc = pd.concat([selected_pars_inc, selected_pars_ave_inc])
 
-    config.config['selected_datasets'] = list(selected_pars_all_inc[selected_pars_all_inc].index.unique().values)
+    config.importer['selected_datasets'] = list(selected_pars_all_inc[selected_pars_all_inc].index.unique().values)
 
 def readFile(dataset, folder, filename):
     file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['file_pat'][dataset]
     
-    for pat in config.config['filetypes']:
+    for pat in config.importer['filetypes']:
         if re.search(pat, file_pat, re.IGNORECASE):
             if dataset in CustomDataImports.import_functions:
                 df = CustomDataImports.import_functions[dataset](dataset, folder, filename, pat)
@@ -249,7 +235,7 @@ def readFile(dataset, folder, filename):
 def importFiles(dataset, folder):
     data_folder_path = Path(config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['data_folder_path'][dataset])
     file_pat = config.config['info']['datasets'].query('dataset == "' + dataset + '" & folder == ' + str(folder))['file_pat'][dataset]
-    files_imported = config.config['files_imported'][dataset][folder]
+    files_imported = config.importer['files_imported'][dataset][folder]
     dataset_in_folder = []
     pbar = tqdm(os.listdir(data_folder_path))
     for filename in pbar:
@@ -289,14 +275,14 @@ def combineSortData(df_dict):
 def importData(dataset):
     num_folders = len(config.config['info']['datasets'].query('dataset == "' + dataset + '"'))
     folder_data_list = {}
-    if dataset not in config.config['files_imported']:
-        config.config['files_imported'][dataset] = {}
+    if dataset not in config.importer['files_imported']:
+        config.importer['files_imported'][dataset] = {}
     for folder in range(1, num_folders + 1):
-        if folder not in config.config['files_imported'][dataset]:
-            config.config['files_imported'][dataset][folder] = []
+        if folder not in config.importer['files_imported'][dataset]:
+            config.importer['files_imported'][dataset][folder] = []
         # Custom pre-import functions
         if dataset in CustomDataImports.preimport_functions:
-            config.config['supporting_data_dict'][dataset] = CustomDataImports.preimport_functions[dataset](dataset, folder)
+            config.data['supporting_data_dict'][dataset] = CustomDataImports.preimport_functions[dataset](dataset, folder)
         # Import files
         folder_data_list[folder] = importFiles(dataset, folder)
     if (not any(df is None for df in folder_data_list)) & (len(folder_data_list) > 0):
@@ -305,10 +291,10 @@ def importData(dataset):
 
 def importDatasets():
     selectDatasets()
-    for dataset in tqdm(config.config['selected_datasets'], desc = "Import data from each dataset"):
+    for dataset in tqdm(config.importer['selected_datasets'], desc = "Import data from each dataset"):
         df = importData(dataset)
         if df is not None:
-            config.config['dataset_data'][dataset] = df
+            config.data['dataset_data'][dataset] = df
 
 def averageReps(df):
     with warnings.catch_warnings():
@@ -339,7 +325,7 @@ def averageReps(df):
             return df
 
 def processAllData():
-    df = combineSortData(config.config['dataset_data'])
+    df = combineSortData(config.data['dataset_data'])
 
     if "mod_post_import_data" in dir(CustomDataImports):
         df = CustomDataImports.mod_post_import_data(df)
@@ -347,7 +333,7 @@ def processAllData():
     df = averageReps(df)
 
     if config.update:
-        all_dict = {'all': config.config['all_data'], 'new': df}
+        all_dict = {'all': config.data['all_data'], 'new': df}
         df = combineSortData(all_dict)
 
     #Sort columns
@@ -373,15 +359,15 @@ def main():
 
     importDatasets() # data dict per dataset
     
-    config.config['all_data'] = processAllData() # all data combined and averaged
+    config.data['all_data'] = processAllData() # all data combined and averaged
 
-    all_data_grouped = config.config['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
+    all_data_grouped = config.data['all_data'].set_index('DateTime').groupby(pd.Grouper(freq='15Min')).aggregate(np.mean)
     print("Exporting all_data_15Min.csv to Output")
     all_data_grouped.to_csv(config.io_dir / 'Output' / 'all_data_15Min.csv')
 
     # Create storage object with filename `processed_data`
     print("Exporting all_data.pbz2 to Output")
-    saveObject(config.config['all_data'], (config.io_dir / 'Output' / 'all_data.pbz2'))
+    saveObject(config.data['all_data'], (config.io_dir / 'Output' / 'all_data.pbz2'))
 
 if __name__ == "__main__":
     main()

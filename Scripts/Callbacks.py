@@ -1,3 +1,16 @@
+import dash
+from dash import html
+from dash import dcc
+from dash.dependencies import Input, Output, State, ALL
+import pandas as pd
+import numpy as np
+import re
+import dash_bootstrap_components as dbc
+from copy import deepcopy
+
+import Scripts.config as config
+import Scripts.Functions as func
+
 def register_callbacks(app):
     #CALLBACKS
 
@@ -11,12 +24,12 @@ def register_callbacks(app):
         ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
         if "chart" in ctx_input:
             chart = int(re.findall(r'\d+', ctx_input)[0])
-            startDate = charts['chart_range_start'][chart]
-            endDate = charts['chart_range_end'][chart]
+            startDate = config.config['info']['charts']['chart_range_start'][chart]
+            endDate = config.config['info']['charts']['chart_range_end'][chart]
 
         startDate = pd.to_datetime(startDate)
         endDate = pd.to_datetime(endDate)
-        return [unixTimeMillis(startDate), unixTimeMillis(endDate)]
+        return [func.unixTimeMillis(startDate), func.unixTimeMillis(endDate)]
 
 
     #SLIDER
@@ -24,19 +37,19 @@ def register_callbacks(app):
         Output('slider-content', 'children'),
         [Input('load', 'children')])
     def update_slider(load):
-        startDate = pd.to_datetime(start)
-        endDate = pd.to_datetime(end)
+        startDate = pd.to_datetime(config.config['date_start'])
+        endDate = pd.to_datetime(config.config['date_end'])
         content = []
         content.append(
             html.Div(dcc.RangeSlider(
                 id='date_slider',
                 updatemode='mouseup',
-                min=unixTimeMillis(startDate),
-                max=unixTimeMillis(endDate),
+                min=func.unixTimeMillis(startDate),
+                max=func.unixTimeMillis(endDate),
                 count=1,
                 step=60000,
-                value=[unixTimeMillis(start), unixTimeMillis(end)],
-                marks=getMarks(start, end, 8),
+                value=[func.unixTimeMillis(config.config['date_start']), func.unixTimeMillis(config.config['date_end'])],
+                marks=func.getMarks(config.config['date_start'], config.config['date_end'], 8),
                 className='px-5'),
         id='loading'))
         return content
@@ -46,21 +59,21 @@ def register_callbacks(app):
         Output('datetime-picker', 'startDate'),
         [Input('date_slider', 'value')])
     def _update_time_range_label(dates_selected):
-        return unixToDatetime(dates_selected[0])
+        return func.unixToDatetime(dates_selected[0])
 
     #TIME RANGE END
     @app.callback(
         Output('datetime-picker', 'endDate'),
         [Input('date_slider', 'value')])
     def _update_time_range_label(dates_selected):
-        return unixToDatetime(dates_selected[1])
+        return func.unixToDatetime(dates_selected[1])
 
     #INITIAL RES
     @app.callback(
         Output('hi_res', 'data'),
         [Input('load', 'children'), Input('date_slider', 'value')])
     def _update_res_val(load, dates_selected):
-        return calcHiRes(dates_selected)
+        return func.calcHiRes(dates_selected)
 
     #RESAMPLE SET DISPLAY
     @app.callback(
@@ -107,15 +120,15 @@ def register_callbacks(app):
         Output('resampler', 'data'),
         [Input('resample_radio', 'value'), Input('resample_set', 'value'), Input('date_slider', 'value')], State('hi_res', 'data'))
     def calcResampling(resolution, set, dates_selected, hi_res):
-        hi_res = calcHiRes(dates_selected)
-        return calcResampler(resolution, set, hi_res)
+        hi_res = func.calcHiRes(dates_selected)
+        return func.calcResampler(resolution, set, hi_res)
 
     #UPDATE RESAMPLER ALERT
     @app.callback(
         Output('resample_label', 'children'),
         [Input('resampler', 'data')])
     def printResampler(value):
-        return resampleAlert(value)
+        return func.resampleAlert(value)
 
     #OFFCANVAS PLOT CHOOSER
     @app.callback(
@@ -138,7 +151,7 @@ def register_callbacks(app):
             return int(plot_set_str)
         else:
             for plot_set in config.config['plot_sets']:
-                if plots == getPlots(plot_set):
+                if plots == func.getPlots(plot_set):
                     return plot_set
             return -1
 
@@ -154,11 +167,11 @@ def register_callbacks(app):
         if ctx_input in ['plot_chooser', 'open-offcanvas-button']:
             new_content = {}
             for plot in plots:
-                new_content[plot] = all_plots[plot]
+                new_content[plot] = config.config['dcc_plot_names'][plot]
             return new_content
         elif ctx_input == 'plot_set_store':
             if plot_set != -1:
-                return getPlots(plot_set)
+                return func.getPlots(plot_set)
             else:
                 return content_old
 
@@ -171,7 +184,7 @@ def register_callbacks(app):
         content.append(html.Div(
             dbc.Checklist(
                 id='plot_chooser',
-                options=[{'label':all_plots[plot], 'value':plot} for plot in all_plots],
+                options=[{'label':config.config['dcc_plot_names'][plot], 'value':plot} for plot in config.config['dcc_plot_names']],
                 value=list(plots.keys()),
                 inline=True,
             ), className="p-3", id='loading2'),
@@ -196,13 +209,13 @@ def register_callbacks(app):
                 if plot in old_traces.keys():
                     new_content[plot] = old_traces[plot]
                 else:
-                    new_content[plot] = all_traces[plot]
+                    new_content[plot] = config.config['dcc_trace_names'][plot]
             return new_content
         elif ctx_input == 'plot_set_store':
             if plot_set != -1:
                 
                 traces = {}
-                for plot in config.config['dcc_plot_set_figs']:
+                for plot in config.figs['dcc_plot_figs']:
                     if plot.id in config.config['plot_set_plots'][plot_set].keys():
                         traces[plot.id] = config.config['plot_set_plots'][plot_set][plot.id]
                         traces[plot.id].sort()
@@ -229,7 +242,7 @@ def register_callbacks(app):
         plots.sort(key=len) #sort by length (graph10+)
         
         card_contents = [dbc.CardHeader("Select traces:", className="card-title",)]
-        for plot in config.config['dcc_plot_set_figs']:
+        for plot in config.figs['dcc_plot_figs']:
             if plot.id in plots:
                 plot_name = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
                 content = [dbc.CardHeader(plot_name, className="card-title",)]
@@ -239,7 +252,7 @@ def register_callbacks(app):
                             'type': 'trace_check',
                             'index': plot.id + '_traces',
                         },
-                        options=[{'label':re.sub('<.*?>', '', trace), 'value':trace} for trace in all_traces[plot.id]],
+                        options=[{'label':re.sub('<.*?>', '', trace), 'value':trace} for trace in config.config['dcc_trace_names'][plot.id]],
                         value=traces[plot.id],
                         inline=True,
                         input_checked_style={
@@ -275,18 +288,18 @@ def register_callbacks(app):
         plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
         
         content = []
-        chart_data = config.config['all_data'].query(
-                'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
-                'DateTime < "' + str(unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
+        chart_data = config.data['all_data'].query(
+                'DateTime > "' + str(func.unixToDatetime(dates_selected[0])) + '"').query(
+                'DateTime < "' + str(func.unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
         if resample > 0:
             chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
         chart_data = chart_data.reset_index()
 
-        for plot_orig in config.config['dcc_plot_set_figs']:
+        for plot_orig in config.figs['dcc_plot_figs']:
             if plot_orig.id in plots:
-                plot_name = config.config['dcc_plot_names'][plot_orig.id]
-                plot = addDatatoPlot(deepcopy(plot_orig), traces, chart_data, dates_selected, plots, height)
-                plot = modifyPlot(plot, plot_name, plots, font)
-                plot = setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
+                plot_name = config.config['dcc_plot_codes'][plot_orig.id]
+                plot = func.addDatatoPlot(deepcopy(plot_orig), traces, chart_data, dates_selected, plots, height)
+                plot = func.modifyPlot(plot, plot_name, plots, font)
+                plot = func.setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
                 content.append(html.Div(id='loading', children=plot))
         return html.Div(id='loading', children=content)

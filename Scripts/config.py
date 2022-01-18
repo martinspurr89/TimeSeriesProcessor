@@ -10,31 +10,29 @@ verbose = False
 config = {}
 config['info'] = {}
 config['project'] = ""
-config['refresh_hours'] = 1
 config['date_start'] = datetime(2020, 1, 1, 0, 0, 0, tzinfo=utc)
 config['date_end'] = datetime(2020, 1, 1, 1, 0, 0, tzinfo=utc)
-config['charts'] = {}
-config['chart_plot_sets'] = {}
-config['plot_sets'] = []
-config['plot_set_plots'] = {}
-config['files_imported'] = {}
-config['supporting_data_dict'] = {}
-config['selected_pars'] = []
-config['bar_pars'] = []
-config['selected_datasets'] = []
-config['dataset_data'] = {}
-config['all_data'] = None
-config['bar_dfs'] = {}
-config['chart_dfs'] = {}
-config['par_plot_dict'] = {}
-config['filetypes'] = []
-config['styles'] = ['line', 'ribbon', 'bar', 'point']
-config['par_style_dict'] = {}
-config['chart_dfs_mlt'] = {}
-config['plot_pars'] = {}
-config['plot_set_figs'] = {}
-config['chart_figs'] = {}
-config['dcc_chart_figs'] = {}
-config['dcc_plot_set_figs'] = {}
-config['dcc_plot_names'] = {}
-config['div_chart_figs'] = {}
+config['plot_sets'] = [] #plot_set ids list
+config['plot_set_plots'] = {} # dict of plot_sets containing plots + trace names
+config['selected_pars'] = [] # list of every par
+config['bar_pars'] = [] # list of bar pars
+config['plot_pars'] = {} # dataframe of all plot_pars info page (par + aves) CC only
+config['dcc_plot_codes'] = {} # graphX:plot name code
+config['dcc_plot_names'] = {} # graphX:plot name
+config['dcc_trace_names'] = {} # graphX:list of trace labels
+
+importer = {}
+importer['files_imported'] = {} # dict of dataset: filenames
+importer['selected_datasets'] = [] # list of datasets used
+importer['filetypes'] = [] # list of filetypes
+
+data = {}
+data['dataset_data'] = {} # Individual data df
+data['supporting_data_dict'] = {} # Supporting dataframe store
+data['all_data'] = None # Master all data df
+
+figs = {}
+figs['plot_figs'] = {} # dict of plot_code:Figure
+figs['dcc_plot_figs'] = {} # list of dcc Graphs
+
+components = {}

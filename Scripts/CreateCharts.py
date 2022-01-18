@@ -9,6 +9,7 @@ import bz2
 import pickle
 import plotly.graph_objects as go
 from dash import dcc
+import re
 
 import Scripts.config as config
 import Scripts.ProcessData_resampler as ProcessData
@@ -18,7 +19,7 @@ def getData():
     if os.path.exists(pfile_path) and config.update:
         print("Importing processed data...")
         with bz2.open(pfile_path, 'rb') as pfile:
-            config.config['all_data'] = pickle.load(pfile)
+            config.data['all_data'] = pickle.load(pfile)
     else:
         if config.update:
             print("No processed all_data.pbz2 file exists - fetching all data")
@@ -36,7 +37,7 @@ def plotSetParDict(df):
 
 
 def plotParDicts():
-    all_data_pars = [c for c in config.config['all_data'].columns[1:] if not "_err" in c]
+    all_data_pars = [c for c in config.data['all_data'].columns[1:] if not "_err" in c]
     par_info1 = config.config['info']['parameters'][
         config.config['info']['parameters']['parameter'].isin(all_data_pars)].drop(
         columns=["code", "parameter_ave"])
@@ -62,12 +63,10 @@ def plotParDicts():
     config.config['plot_pars'] = par_info_all
     plotSetParDict(par_info_all)
 
-def getPlotSetInfo(plot_set = "all"):
-    plot_set_info = config.config['info']['plots']
-    if plot_set != "all":
-        plot_set_info = plot_set_info.loc[-pd.isna(config.config['info']['plots']['selected_plot_set_' + str(plot_set)])]
-    plot_set_info = plot_set_info[plot_set_info.index.isin(config.config['plot_pars']['plot'].unique())]
-    return(plot_set_info)
+def getPlotsInfo():
+    plots_info = config.config['info']['plots']
+    plots_info = plots_info[plots_info.index.isin(config.config['plot_pars']['plot'].unique())]
+    return(plots_info)
 
 def addTrace(par, plot_fig):
     par_info = config.config['plot_pars'].query('parameter == "' + par + '"')
@@ -133,15 +132,15 @@ def addTrace(par, plot_fig):
         return(plot_fig)
 
     if len(par_info) != 0:
-        all_data_pars = [c for c in config.config['all_data'].columns[1:] if not "_err" in c]
+        all_data_pars = [c for c in config.data['all_data'].columns[1:] if not "_err" in c]
 
 
-        x_data = config.config['all_data'].DateTime
-        y_data = config.config['all_data'][par]
+        x_data = config.data['all_data'].DateTime
+        y_data = config.data['all_data'][par]
         error_bars = False
         if par + "_err" in all_data_pars:
             error_bars = True
-            y_error = config.config['all_data'][par + "_err"]
+            y_error = config.data['all_data'][par + "_err"]
 
         if any(par_info['point'] ==True) or any(par_info['bar'] ==True):
             if error_bars:
@@ -167,7 +166,7 @@ def addTrace(par, plot_fig):
     return(plot_fig)
 
 def modifyPlot(plot_fig, plot):
-    plot_info = getPlotSetInfo().query('plot == "' + plot + '"')
+    plot_info = getPlotsInfo().query('plot == "' + plot + '"')
     plot_fig.update_layout(
         margin=dict(l=100, r=250, b=15, t=15, pad=10),
         template="simple_white",
@@ -179,46 +178,41 @@ def modifyPlot(plot_fig, plot):
     plot_fig.update_yaxes(title_text=plot_info['ylab'][plot], mirror=True)
     plot_fig.update_xaxes(showgrid=True, showticklabels=False, ticks="",
         showline=True, mirror=True,
-        range=[min(config.config['all_data'].DateTime), max(config.config['all_data'].DateTime)])
+        range=[min(config.data['all_data'].DateTime), max(config.data['all_data'].DateTime)])
         #fixedrange=True) #prevent x zoom
     return(plot_fig)
 
 def createPlotFig(plot):    
-    plot_set_pars = config.config['plot_pars'].query('plot == "' + plot + '"').parameter.unique().tolist()
+    plot_pars = config.config['plot_pars'].query('plot == "' + plot + '"').parameter.unique().tolist()
     plot_fig = go.Figure()
     #Add traces
-    for par in plot_set_pars:
+    for par in plot_pars:
         plot_fig = addTrace(par, plot_fig)
     #Modify plot layout
     plot_fig = modifyPlot(plot_fig, plot)
     return(plot_fig)
 
-def createPlotSetFigs():
-    plot_set_figs = {}
+def createPlotFigs():
+    plot_figs = {}
     # For each plot
-    for plot in tqdm(getPlotSetInfo().index.to_list(), desc = "Creating plot figure bases"):
-        plot_set_figs[plot] =  createPlotFig(plot)
-    return(plot_set_figs)
-
-def editPlotforChart(plot, chart):
-    #fontsize
-    plot_fig = setAxisRange(plot_fig, plot, chart)
-    #Add date to last plot in chart
-    if plot == plot_set_info['plot'].to_list()[len(plot_set_info['plot'].to_list())-1]:
-        plot_fig.update_xaxes(showticklabels=True, ticks="outside")
+    for plot in tqdm(getPlotsInfo().index.to_list(), desc = "Creating plot figure bases"):
+        plot_figs[plot] =  createPlotFig(plot)
+    return(plot_figs)
 
 def createDashCharts():
     dcc_chart_fig = []
     p = 0
-    for plot in config.config['plot_set_figs']:
-        if p != len(config.config['plot_set_figs'])-1: #if not the last plot
+    for plot in config.figs['plot_figs']:
+        if p != len(config.figs['plot_figs'])-1: #if not the last plot
             height = '20vh'
         else:
             height = '25vh'
         dcc_chart_fig.append(dcc.Graph(id='graph' + str(p),
-                                            figure=config.config['plot_set_figs'][plot],
+                                            figure=config.figs['plot_figs'][plot],
                                             style={'width': '98vw', 'height': ''+ height + ''}))
-        config.config['dcc_plot_names']['graph' + str(p)] = plot
+        config.config['dcc_plot_codes']['graph' + str(p)] = plot
+        config.config['dcc_plot_names']['graph' + str(p)] = re.sub('<.*?>', ' ', config.config['info']['plots']['ylab'][plot])
+        config.config['dcc_trace_names']['graph' + str(p)] = list(config.config['plot_pars'].query('plot == "' + plot + '"')['parameter_lab'].unique())
         p = p + 1
     return(dcc_chart_fig)
 
@@ -226,9 +220,9 @@ def modPlotSetPlots(dict):
     new_dict = {}
     for plot_set in config.config['plot_sets']:
         new_dict[plot_set] = {}
-        for graph in config.config['dcc_plot_names'].keys():
-            if config.config['dcc_plot_names'][graph] in dict[plot_set].keys():
-                new_dict[plot_set][graph] = dict[plot_set][config.config['dcc_plot_names'][graph]]
+        for graph in config.config['dcc_plot_codes'].keys():
+            if config.config['dcc_plot_codes'][graph] in dict[plot_set].keys():
+                new_dict[plot_set][graph] = dict[plot_set][config.config['dcc_plot_codes'][graph]]
                 if len(new_dict[plot_set][graph]) == 0:
                     new_dict[plot_set].pop(graph)
     return new_dict
@@ -243,8 +237,8 @@ def main():
     getData()
 
     plotParDicts()
-    config.config['plot_set_figs']  = createPlotSetFigs()
-    config.config['dcc_plot_set_figs'] = createDashCharts()
+    config.figs['plot_figs']  = createPlotFigs()
+    config.figs['dcc_plot_figs'] = createDashCharts()
     config.config['plot_set_plots'] = modPlotSetPlots(config.config['plot_set_plots'])
 
         #pbar.set_description("Exporting chart %s" % plot_set)
@@ -258,7 +252,8 @@ def main():
         
 
     # # saveObject(config.config, (config.io_dir / 'Temp' / 'config.pbz2'))
-    export_config = {k: config.config[k] for k in ['plot_sets', 'info', 'date_end', 'date_start', 'dcc_plot_set_figs', 'plot_pars', 'dcc_plot_names', 'plot_set_plots'] if k in config.config}
+    export_config = [config.config, config.figs]
+    
     print("Exporting sub_config2.pbz2 to Output")
     saveObject(export_config, (config.io_dir / 'Output' / 'sub_config2.pbz2'))
 
