@@ -166,6 +166,17 @@ def processColours(df):
     df['rgba_str'] = "rgba(" + df['r'].astype(int).astype(str) + "," + df['g'].astype(int).astype(str) + "," + df['b'].astype(int).astype(str) + ",1)"
     return df
 
+def processSizes(df):
+    pdf_size_dict = {}
+    png_size_dict = {}
+    for size_id, row in df.query('type == "pdf"').iterrows():
+        pdf_size_dict[size_id] = row.to_dict()
+    for size_id, row in df.query('type == "png"').iterrows():
+        png_size_dict[size_id] = row.to_dict()
+    config.config['pdf_size_dict'] = pdf_size_dict
+    config.config['png_size_dict'] = png_size_dict
+
+
 def openinfoFile():
     info_fname = "Info2.xlsx"
     config.config['info'] = pd.read_excel(config.io_dir / info_fname, sheet_name=None, index_col=0)
@@ -173,6 +184,7 @@ def openinfoFile():
     config.config['info']['charts'] = processCharts(config.config['info']['charts'])
     config.config['info']['plots'] = processPlots(config.config['info']['plots'])
     config.config['info']['colours'] = processColours(config.config['info']['colours'])
+    processSizes(config.config['info']['page_sizes'])
 
 # Data import functions
 def selectDatasets():

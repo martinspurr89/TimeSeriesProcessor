@@ -20,6 +20,8 @@ config['plot_pars'] = {} # dataframe of all plot_pars info page (par + aves) CC 
 config['dcc_plot_codes'] = {} # graphX:plot name code
 config['dcc_plot_names'] = {} # graphX:plot name
 config['dcc_trace_names'] = {} # graphX:list of trace labels
+config['pdf_size_dict'] = {}
+config['png_size_dict'] = {}
 
 importer = {}
 importer['files_imported'] = {} # dict of dataset: filenames

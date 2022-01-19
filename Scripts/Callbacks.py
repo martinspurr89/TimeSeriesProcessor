@@ -303,3 +303,70 @@ def register_callbacks(app):
                 plot = func.setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
                 content.append(html.Div(id='loading', children=plot))
         return html.Div(id='loading', children=content)
+
+    #PDF
+    @app.callback(Output('pdf_grp', 'children'),
+                [Input('pdf_on', 'value'), Input({'type': 'pdf_size_select', 'index': ALL}, 'n_clicks')],
+                State('pdf_grp', 'children'))
+    def pdf_size_update(pdf_on, pdf_drop, pdf_grp):
+        ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if ctx_input == 'pdf_on':
+            if len(pdf_on) > 0:
+                for prop in range(0,len(pdf_grp)):
+                    if pdf_grp[prop]['type'] == 'Input' or pdf_grp[prop]['type'] == 'DropdownMenu':
+                        pdf_grp[prop]['props']['disabled'] = False
+            else:
+                for prop in range(0,len(pdf_grp)):
+                    if pdf_grp[prop]['type'] == 'Input' or pdf_grp[prop]['type'] == 'DropdownMenu':
+                        pdf_grp[prop]['props']['disabled'] = True
+        elif "index" in ctx_input:
+            size = int(re.findall(r'\d+', ctx_input)[0])
+            for prop in range(0,len(pdf_grp)):
+                if pdf_grp[prop]['type'] == 'Input':
+                    if pdf_grp[prop]['props']['id'] == 'pdf_width':
+                        pdf_grp[prop]['props']['value'] = config.config['pdf_size_dict'][size]['width']
+                    elif pdf_grp[prop]['props']['id'] == 'pdf_height':
+                        pdf_grp[prop]['props']['value'] = config.config['pdf_size_dict'][size]['height']
+
+        return pdf_grp
+
+    #PNG
+    @app.callback(Output('png_grp', 'children'),
+                [Input('png_on', 'value'), Input({'type': 'png_size_select', 'index': ALL}, 'n_clicks')],
+                State('png_grp', 'children'))
+    def png_size_update(png_on, png_drop, png_grp):
+        ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if ctx_input == 'png_on':
+            if len(png_on) > 0:
+                for prop in range(0,len(png_grp)):
+                    if png_grp[prop]['type'] == 'Input' or png_grp[prop]['type'] == 'DropdownMenu':
+                        png_grp[prop]['props']['disabled'] = False
+            else:
+                for prop in range(0,len(png_grp)):
+                    if png_grp[prop]['type'] == 'Input' or png_grp[prop]['type'] == 'DropdownMenu':
+                        png_grp[prop]['props']['disabled'] = True
+        elif "index" in ctx_input:
+            size = int(re.findall(r'\d+', ctx_input)[0])
+            for prop in range(0,len(png_grp)):
+                if png_grp[prop]['type'] == 'Input':
+                    if png_grp[prop]['props']['id'] == 'png_width':
+                        png_grp[prop]['props']['value'] = config.config['png_size_dict'][size]['width']
+                    elif png_grp[prop]['props']['id'] == 'png_height':
+                        png_grp[prop]['props']['value'] = config.config['png_size_dict'][size]['height']
+                    elif png_grp[prop]['props']['id'] == 'png_dpi':
+                        png_grp[prop]['props']['value'] = config.config['png_size_dict'][size]['png_dpi']
+
+        return png_grp
+
+    #EXPORT ENABLE
+    @app.callback(Output('export_submit', 'disabled'),
+                [Input('html_on', 'value'), Input('pdf_on', 'value'), Input('png_on', 'value')])
+    def export_update(html_on, pdf_on, png_on):
+        if len(html_on) > 0 or len(pdf_on) > 0 or len(png_on) > 0:
+            return False
+        else:
+            return True

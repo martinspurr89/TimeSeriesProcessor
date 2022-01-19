@@ -43,11 +43,11 @@ def rangeString(start, end):
 
 def resampleAlert(value):
     if value == None:
-        return dbc.Alert("Set value for resampling in minutes", color="danger", class_name = "mb-0")
+        return dbc.Alert("Set value for resampling in minutes", color="danger", class_name = "mb-0 py-0")
     if value > 0:
-        return dbc.Alert('Resample every ' + str(value) + ' mins', color="light", style = {'textAlign': 'left'}, class_name = "mb-0")
+        return dbc.Alert('Resample every ' + str(value) + ' mins', color="secondary", class_name = "mb-0 py-0")
     elif value == 0:
-        return dbc.Alert('Data not resampled', color="warning", class_name = "mb-0")
+        return dbc.Alert('Data not resampled', color="warning", class_name = "mb-0 py-0")
     else:
         return ""
 
