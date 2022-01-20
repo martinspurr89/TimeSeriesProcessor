@@ -2,6 +2,8 @@ import dash
 from dash import html
 from dash import dcc
 from dash.dependencies import Input, Output, State, ALL
+from dash.exceptions import PreventUpdate
+from dash_extensions.enrich import Output, Dash, Trigger, FileSystemCache
 import pandas as pd
 import numpy as np
 import re
@@ -14,27 +16,9 @@ import Scripts.Functions as func
 def register_callbacks(app):
     #CALLBACKS
 
-#DATETIME PICKER
-    @app.callback(
-        Output('date_slider', 'value'),
-        [Input('datetime-picker', 'startDate'),
-        Input('datetime-picker', 'endDate'), Input({'type': 'chart_select', 'index': ALL}, 'n_clicks')])
-    def datetime_range(startDate, endDate, chart):
-        ctx = dash.callback_context
-        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
-        if "chart" in ctx_input:
-            chart = int(re.findall(r'\d+', ctx_input)[0])
-            startDate = config.config['info']['charts']['chart_range_start'][chart]
-            endDate = config.config['info']['charts']['chart_range_end'][chart]
-
-        startDate = pd.to_datetime(startDate)
-        endDate = pd.to_datetime(endDate)
-        return [func.unixTimeMillis(startDate), func.unixTimeMillis(endDate)]
-
-
     #SLIDER
     @app.callback(
-        Output('slider-content', 'children'),
+        Output('slider-content', 'children'), 
         [Input('load', 'children')])
     def update_slider(load):
         startDate = pd.to_datetime(config.config['date_start'])
@@ -54,81 +38,58 @@ def register_callbacks(app):
         id='loading'))
         return content
 
-    #TIME RANGE START
+    #DATETIME PICKER
     @app.callback(
-        Output('datetime-picker', 'startDate'),
+        Output('date_slider', 'value'),
+        [Input('datetime-picker', 'startDate'),
+        Input('datetime-picker', 'endDate'), Input({'type': 'chart_select', 'index': ALL}, 'n_clicks')])
+    def datetime_range(startDate, endDate, chart):
+        ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+        if "chart" in ctx_input:
+            chart = int(re.findall(r'\d+', ctx_input)[0])
+            startDate = config.config['info']['charts']['chart_range_start'][chart]
+            endDate = config.config['info']['charts']['chart_range_end'][chart]
+
+        startDate = pd.to_datetime(startDate)
+        endDate = pd.to_datetime(endDate)
+        return [func.unixTimeMillis(startDate), func.unixTimeMillis(endDate)]
+
+    #TIME RANGE
+    @app.callback(
+        [Output('datetime-picker', 'startDate'), Output('datetime-picker', 'endDate')],
         [Input('date_slider', 'value')])
     def _update_time_range_label(dates_selected):
-        return func.unixToDatetime(dates_selected[0])
+        return func.unixToDatetime(dates_selected[0]), func.unixToDatetime(dates_selected[1])
 
-    #TIME RANGE END
+    #RESAMPLE SET
     @app.callback(
-        Output('datetime-picker', 'endDate'),
-        [Input('date_slider', 'value')])
-    def _update_time_range_label(dates_selected):
-        return func.unixToDatetime(dates_selected[1])
-
-    #INITIAL RES
-    @app.callback(
-        Output('hi_res', 'data'),
-        [Input('load', 'children'), Input('date_slider', 'value')])
-    def _update_res_val(load, dates_selected):
-        return func.calcHiRes(dates_selected)
-
-    #RESAMPLE SET DISPLAY
-    @app.callback(
-        Output('resample_div', 'style'),
+        [Output('resample_div', 'style'), Output('resample_set', 'disabled')],
         [Input('resample_radio', 'value')])
     def disableinput(value):
         if value == 'SET':
-            return {'display': 'block'}
+            return {'display': 'block'}, False
         else:
-            return {'display': 'none'}
-
-    #RESAMPLE SET DISABLE
-    @app.callback(
-        Output('resample_set', 'disabled'),
-        [Input('resample_radio', 'value')])
-    def disableinput(value):
-        if value == 'SET':
-            return False
-        else:
-            return True
+            return {'display': 'none'}, True
 
     #RESAMPLE SET INVALID
     @app.callback(
-        Output('resample_set', 'invalid'),
+        [Output('resample_set', 'invalid'), Output('submit_val', 'disabled')],
         [Input('resampler', 'data')])
     def disableinput(value):
         if value == None:
-            return True
+            return True, True
         else:
-            return False
-
-    #RESAMPLE/SUBMIT INVALID
-    @app.callback(
-        Output('submit_val', 'disabled'),
-        [Input('resampler', 'data')])
-    def disableinput(value):
-        if value == None:
-            return True
-        else:
-            return False
+            return False, False
 
     #CALC/STORE RESAMPLER VAL
     @app.callback(
-        Output('resampler', 'data'),
+        [Output('hi_res', 'data'), Output('resampler', 'data'), Output('resample_label', 'children')],
         [Input('resample_radio', 'value'), Input('resample_set', 'value'), Input('date_slider', 'value')], State('hi_res', 'data'))
     def calcResampling(resolution, set, dates_selected, hi_res):
         hi_res = func.calcHiRes(dates_selected)
-        return func.calcResampler(resolution, set, hi_res)
-
-    #UPDATE RESAMPLER ALERT
-    @app.callback(
-        Output('resample_label', 'children'),
-        [Input('resampler', 'data')])
-    def printResampler(value):
-        return func.resampleAlert(value)
+        resampler = func.calcResampler(resolution, set, hi_res)
+        return hi_res, resampler, func.resampleAlert(resampler)
 
     #OFFCANVAS PLOT CHOOSER
     @app.callback(
@@ -277,32 +238,56 @@ def register_callbacks(app):
             return str(-1)
         return drop
 
-    #CHART
-    @app.callback(Output('chart-content', 'children'),
-                [Input('submit_val', 'n_clicks')],
-                [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
-                State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value')])
-    def render_content(n_clicks, plot_set, dates_selected, plots, resample, traces, height, font):
-        #time.sleep(2)
-        sorted_keys = sorted(sorted(plots.keys()), key=len)
-        plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
-        
-        content = []
-        chart_data = config.data['all_data'].query(
-                'DateTime > "' + str(func.unixToDatetime(dates_selected[0])) + '"').query(
-                'DateTime < "' + str(func.unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
-        if resample > 0:
-            chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
-        chart_data = chart_data.reset_index()
+    #SUBMIT INTERVAL
+    @app.callback(Output('submit_interval', 'disabled'),
+                [Input('submit_val', 'n_clicks'), Input('export_submit', 'n_clicks'), Input('chart_store', 'data')])
+    def enable_interval(submit, export, chart):
+        ctx = dash.callback_context
 
-        for plot_orig in config.figs['dcc_plot_figs']:
-            if plot_orig.id in plots:
-                plot_name = config.config['dcc_plot_codes'][plot_orig.id]
-                plot = func.addDatatoPlot(deepcopy(plot_orig), traces, chart_data, dates_selected, plots, height)
-                plot = func.modifyPlot(plot, plot_name, plots, font)
-                plot = func.setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
-                content.append(html.Div(id='loading', children=plot))
+        for ctx_in in ctx.triggered:
+            if ctx_in['prop_id'].split('.')[0] == 'chart_store':
+                config.fsc.set("submit_progress", str(0))  # clear progress
+                return True
+        if submit > 0 or export > 0:
+            return False
+        else:
+            return True
+
+    #SUBMIT CHART
+    @app.callback(Output('chart-content', 'children'),
+                [Input('chart_store', 'data')])
+    def render_content(content):
         return html.Div(id='loading', children=content)
+
+    #SUBMIT CHART
+    @app.callback(Output('submit_interval', 'n_intervals'),
+                [Input('chart_store', 'data')])
+    def render_content(content):
+        return 0
+
+    #SUBMIT CHART
+    @app.callback(Output('chart_store', 'data'),
+                [Input('submit_interval', 'n_intervals')],
+                [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
+                State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value'),
+                State('chart-content', 'children')])
+    def create_content(n_intervals, plot_set, dates_selected, plots, resample, traces, height, font, chart_content):
+        #time.sleep(2)
+        if n_intervals == 1:
+            sorted_keys = sorted(sorted(plots.keys()), key=len)
+            plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
+            content = func.create_chart_content(dates_selected, plots, resample, traces, height, font)
+            return content
+        else:
+            raise PreventUpdate
+
+    #SUBMIT PROGRESS
+    @app.callback(Output("submit_progress", "value"), Trigger("submit_interval", "n_intervals"))
+    def update_progress():
+        value = config.fsc.get("submit_progress")  # get progress
+        if value is None:
+            raise PreventUpdate
+        return int(float(config.fsc.get("submit_progress")) * 100)
 
     #PDF
     @app.callback(Output('pdf_grp', 'children'),
@@ -313,7 +298,7 @@ def register_callbacks(app):
         ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
 
         if ctx_input == 'pdf_on':
-            if len(pdf_on) > 0:
+            if pdf_on is not None:
                 for prop in range(0,len(pdf_grp)):
                     if pdf_grp[prop]['type'] == 'Input' or pdf_grp[prop]['type'] == 'DropdownMenu':
                         pdf_grp[prop]['props']['disabled'] = False
@@ -341,7 +326,7 @@ def register_callbacks(app):
         ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
 
         if ctx_input == 'png_on':
-            if len(png_on) > 0:
+            if png_on is not None:
                 for prop in range(0,len(png_grp)):
                     if png_grp[prop]['type'] == 'Input' or png_grp[prop]['type'] == 'DropdownMenu':
                         png_grp[prop]['props']['disabled'] = False
@@ -366,7 +351,54 @@ def register_callbacks(app):
     @app.callback(Output('export_submit', 'disabled'),
                 [Input('html_on', 'value'), Input('pdf_on', 'value'), Input('png_on', 'value')])
     def export_update(html_on, pdf_on, png_on):
-        if len(html_on) > 0 or len(pdf_on) > 0 or len(png_on) > 0:
+        if html_on is not None or pdf_on is not None or png_on is not None:
             return False
         else:
             return True
+
+    #EXPORT INTERVAL
+    @app.callback(Output('export_interval', 'disabled'),
+                [Input('export_submit', 'n_clicks'), Trigger("export_interval", "n_intervals")])
+    def enable_interval(export):
+        ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if ctx_input == 'export_interval':
+            value = config.fsc.get("export_progress")  # get progress
+            if value is None:
+                return True
+            if int(float(value) * 100) == 100:
+                config.fsc.set("export_progress", str(0))  # clear progress
+                return True
+            elif int(float(value) * 100) == 0:
+                return True
+
+        if export > 0:
+            return False
+        else:
+            return True
+
+    #EXPORT
+    @app.callback(Output('export_msg', 'children'),
+                [Input('export_submit', 'n_clicks')],
+                [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
+                State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value'),
+                State('html_on', 'value'), State('pdf_on', 'value'), State('png_on', 'value'), State('pdf_grp', 'children'), State('png_grp', 'children')])
+    def render_content(n_clicks, plot_set, dates_selected, plots, resample, traces, height, font, html_on, pdf_on, png_on, pdf_grp, png_grp):
+        #time.sleep(2)
+        sorted_keys = sorted(sorted(plots.keys()), key=len)
+        plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
+        content = func.create_chart_content(dates_selected, plots, resample, traces, height, font)
+
+        export_alert = dbc.Alert([html.I(className="bi bi-check-circle-fill me-2"), "Export complete",],
+            color="success",
+            className="d-flex align-items-center mb-0 py-0")
+        return export_alert
+
+    #EXPORT PROGRESS
+    @app.callback(Output("export_progress", "value"), Trigger("export_interval", "n_intervals"))
+    def update_progress():
+        value = config.fsc.get("export_progress")  # get progress
+        if value is None:
+            raise PreventUpdate
+        return int(float(config.fsc.get("export_progress")) * 100)

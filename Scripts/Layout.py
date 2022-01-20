@@ -49,12 +49,13 @@ def prepare_layout():
         startDate = start, endDate = end, utc=True, locale="en-gb"),
     ], style = {'align-self': 'center'})
 
-    datetime_slider = dbc.Spinner(id='slider-content', color="info")
+    datetime_slider = html.Div(dbc.Spinner(id='slider-content', color="info"), style={'textAlign': 'center'})
 
     components['datetime_selector'] = dbc.Card([
         dbc.CardHeader("DateTime Range", className="card-title",),
         html.Div([
             dbc.Row([
+                dcc.Store(id="dates", data=[start, end]),
                 dbc.Col([datetime_dropdown]),
                 dbc.Col([datetime_pick]),
                 dbc.Col([])
@@ -170,9 +171,18 @@ def prepare_layout():
         )
     ], className='p-3')
 
+    submit_progress = html.Div([
+        dbc.Progress(id="submit_progress", striped=True, value=0, max=100, color="success"),
+        dcc.Interval(id="submit_interval", interval=500, disabled=True)
+    ], className='p-3')
+
     components['submit_card'] = dbc.Card([
         dbc.CardHeader("Load Charts", class_name="card-title",),
-        submit_input,
+        dbc.Row([
+            dcc.Store(id="chart_store"),
+            dbc.Col(submit_input, width=3, style = {'align-self': 'center'}),
+            dbc.Col(submit_progress, style = {'align-self': 'center'})
+        ])
     ])
 
     pdf_page_sizes = []
@@ -269,23 +279,33 @@ def prepare_layout():
         dbc.Input(id='png_dpi', type="number", min=1, step=1, placeholder="dpi", style={'max-width':'13%'}, value = def_png_dpi, disabled=True),
     ], id="png_grp")
 
+    export_button = dbc.Button(
+        "EXPORT",
+        id="export_submit",
+        n_clicks=0,
+        color="warning",
+        disabled = True
+    )
+
+    export_progress = html.Div([
+        dbc.Progress(id="export_progress", striped=True, value=0, max=100, color="success"),
+        dcc.Interval(id="export_interval", interval=500, disabled=True)
+    ], className='p-3')
+    
     export_div = [
         dbc.Col(
-            html.Div([
-                dbc.Button(
-                    "EXPORT",
-                    id="export_submit",
-                    n_clicks=0,
-                    color="warning",
-                    disabled = True
-                )
-            ], className='pt-3'),
-        style={'max-width': '20%'})
+            html.Div(export_button, className='pt-3'),
+        style={'max-width': '20%'}),
+        dbc.Col(
+            export_progress
+        , style = {'align-self':'center'}),
+        dbc.Col(
+            html.Div(id="export_msg", className = 'pt-3 pl-2')
+        , style = {'align-self':'center'})
     ]
         
     components['export_card'] = dbc.Card([
         dbc.CardHeader("Export Settings", class_name="card-title",),
-        dcc.Store(id='exporter'),
         html.Div([
             dbc.Col([
                 dbc.Row(html_check, class_name = "g-0"),

@@ -9,6 +9,7 @@ from pytz import timezone, utc
 import math
 import humanize
 from datetime import datetime, timedelta
+from copy import deepcopy
 
 import Scripts.config as config
 
@@ -232,6 +233,26 @@ def setAxisRange(plot_fig, plot, chart_data, traces_info):
         plot_fig.figure.update_yaxes(ticklabelposition="inside", ticks="inside", automargin=False)
 
     return(plot_fig)
+
+def create_chart_content(dates_selected, plots, resample, traces, height, font):
+    content = []
+    chart_data = config.data['all_data'].query(
+            'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
+            'DateTime < "' + str(unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
+    if resample > 0:
+        chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
+    chart_data = chart_data.reset_index()
+
+    for plot_orig in config.figs['dcc_plot_figs']:
+        if plot_orig.id in plots:
+            plot_name = config.config['dcc_plot_codes'][plot_orig.id]
+            plot = addDatatoPlot(deepcopy(plot_orig), traces, chart_data, dates_selected, plots, height)
+            plot = modifyPlot(plot, plot_name, plots, font)
+            plot = setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
+            content.append(html.Div(id='loading', children=plot))
+            progress_pc = (list(plots.keys()).index(plot_orig.id) + 1) / len(plots.keys())
+            config.fsc.set("submit_progress", str(progress_pc))  # update progress
+    return content
 
 def open_browser():
     port = 8050
