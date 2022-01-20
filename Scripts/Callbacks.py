@@ -9,6 +9,7 @@ import numpy as np
 import re
 import dash_bootstrap_components as dbc
 from copy import deepcopy
+import time
 
 import Scripts.config as config
 import Scripts.Functions as func
@@ -40,255 +41,285 @@ def register_callbacks(app):
 
     #DATETIME PICKER
     @app.callback(
-        Output('date_slider', 'value'),
-        [Input('datetime-picker', 'startDate'),
-        Input('datetime-picker', 'endDate'), Input({'type': 'chart_select', 'index': ALL}, 'n_clicks')])
-    def datetime_range(startDate, endDate, chart):
+        Output('dates', 'data'),
+        [Input('datetime-picker', 'startDate'), Input('datetime-picker', 'endDate'),
+        Input({'type': 'chart_select', 'index': ALL}, 'n_clicks'), Input('date_slider', 'value')], 
+        State('dates', 'data'))
+    def update_datetime_range(startDate, endDate, chart, dates_selected, old_dates):
+        start = func.unixToDatetime(old_dates[0])
+        end = func.unixToDatetime(old_dates[1])
         ctx = dash.callback_context
-        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+        ctx_input = ctx.triggered[0]['prop_id']
         if "chart" in ctx_input:
             chart = int(re.findall(r'\d+', ctx_input)[0])
-            startDate = config.config['info']['charts']['chart_range_start'][chart]
-            endDate = config.config['info']['charts']['chart_range_end'][chart]
-
-        startDate = pd.to_datetime(startDate)
-        endDate = pd.to_datetime(endDate)
-        return [func.unixTimeMillis(startDate), func.unixTimeMillis(endDate)]
-
-    #TIME RANGE
+            start = config.config['info']['charts']['chart_range_start'][chart]
+            end = config.config['info']['charts']['chart_range_end'][chart]
+        elif "datetime-picker.startDate" in ctx_input:
+            start = pd.to_datetime(startDate)
+        elif "datetime-picker.endDate" in ctx_input:
+            end = pd.to_datetime(endDate)
+        elif "date_slider" in ctx_input:
+            start = func.unixToDatetime(dates_selected[0])
+            end = func.unixToDatetime(dates_selected[1])
+        return [func.unixTimeMillis(start), func.unixTimeMillis(end)]
+    
     @app.callback(
-        [Output('datetime-picker', 'startDate'), Output('datetime-picker', 'endDate')],
-        [Input('date_slider', 'value')])
-    def _update_time_range_label(dates_selected):
-        return func.unixToDatetime(dates_selected[0]), func.unixToDatetime(dates_selected[1])
+        [Output('datetime-picker', 'startDate'), Output('datetime-picker', 'endDate'),
+        Output('date_slider', 'value')], 
+        Input('dates', 'data'))
+    def update_datetime_sel(dates):
+        return func.unixToDatetime(dates[0]), func.unixToDatetime(dates[1]), dates
 
-    #RESAMPLE SET
-    @app.callback(
-        [Output('resample_div', 'style'), Output('resample_set', 'disabled')],
-        [Input('resample_radio', 'value')])
-    def disableinput(value):
-        if value == 'SET':
-            return {'display': 'block'}, False
-        else:
-            return {'display': 'none'}, True
-
-    #RESAMPLE SET INVALID
-    @app.callback(
-        [Output('resample_set', 'invalid'), Output('submit_val', 'disabled')],
-        [Input('resampler', 'data')])
-    def disableinput(value):
-        if value == None:
-            return True, True
-        else:
-            return False, False
 
     #CALC/STORE RESAMPLER VAL
     @app.callback(
-        [Output('hi_res', 'data'), Output('resampler', 'data'), Output('resample_label', 'children')],
-        [Input('resample_radio', 'value'), Input('resample_set', 'value'), Input('date_slider', 'value')], State('hi_res', 'data'))
-    def calcResampling(resolution, set, dates_selected, hi_res):
-        hi_res = func.calcHiRes(dates_selected)
-        resampler = func.calcResampler(resolution, set, hi_res)
-        return hi_res, resampler, func.resampleAlert(resampler)
-
-    #OFFCANVAS PLOT CHOOSER
-    @app.callback(
-        Output("offcanvas-scrollable", "is_open"),
-        Input("open-offcanvas-button", "n_clicks"),
-        State("offcanvas-scrollable", "is_open"))
-    def toggle_offcanvas_scrollable(n1, is_open):
-        if n1:
-            return not is_open
-        return is_open
-
-    #PLOT SET VAL
-    @app.callback(
-        Output('plot_set_store', 'data'),
-        [Input('plot_set_drop', 'value'), Input('plots_store', 'data')])
-    def plot_set_val(plot_set_str, plots):
+        [Output('hi_res', 'data'), Output('resampler', 'data'), Output('resample_label', 'children'),
+        Output('resample_div', 'style'), Output('resample_set', 'invalid'), 
+        Output('height_set', 'invalid'), Output('font_set', 'invalid'), 
+        Output('submit_val', 'disabled'), Output('export_submit', 'disabled')],
+        [Input('resample_radio', 'value'), Input('resample_set', 'value'), Input('dates', 'data'),
+        Input('html_on', 'value'), Input('csv_on', 'value'), Input('pdf_on', 'value'), Input('png_on', 'value'),
+        Input('height_set', 'value'), Input('font_set', 'value')],
+        [State('export_submit', 'disabled'), State('resampler', 'data')])
+    def calcResampling(resolution, set, dates, html_on, csv_on, pdf_on, png_on, height, font, export_state, resampler):
         ctx = dash.callback_context
         ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
-        if ctx_input == 'plot_set_drop':
-            return int(plot_set_str)
-        else:
-            for plot_set in config.config['plot_sets']:
-                if plots == func.getPlots(plot_set):
-                    return plot_set
-            return -1
-
-    #PLOT SET CHOSEN - SET PLOTS
-    @app.callback(
-        Output('plots_store', 'data'),
-        [Input("open-offcanvas-button", "n_clicks"), Input('plot_set_store', 'data'), Input('plot_chooser', 'value')],
-        [State('plots_store', 'data')])
-    def update_plots(button, plot_set, plots, content_old):
-        ctx = dash.callback_context
-        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
-
-        if ctx_input in ['plot_chooser', 'open-offcanvas-button']:
-            new_content = {}
-            for plot in plots:
-                new_content[plot] = config.config['dcc_plot_names'][plot]
-            return new_content
-        elif ctx_input == 'plot_set_store':
-            if plot_set != -1:
-                return func.getPlots(plot_set)
+        
+        if ctx_input not in ['html_on', 'csv_on', 'pdf_on', 'png_on', 'height_set', 'font_set']:
+            hi_res = func.calcHiRes(dates)
+            resampler = func.calcResampler(resolution, set, hi_res)
+            if resolution == 'SET':
+                style = {'display': 'block'}
             else:
-                return content_old
+                style = {'display': 'none'}
+            alert = func.resampleAlert(resampler)
 
-    #PLOT CHOOSER UPDATE
+        if resampler == None:
+            r_invalid = True
+        else:
+            r_invalid = False
+        if height == None:
+            h_invalid = True
+        else:
+            h_invalid = False
+        if font == None:
+            f_invalid = True
+        else:
+            f_invalid = False
+        if r_invalid or h_invalid or f_invalid:
+            exp_disabled = True
+            sub_disabled = True
+        else:
+            sub_disabled = False
+            if not html_on and not csv_on and not pdf_on and not png_on:
+                exp_disabled = True
+            else:
+                exp_disabled = False
+
+        if ctx_input in ['html_on', 'csv_on', 'pdf_on', 'png_on', 'height_set', 'font_set']:
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, h_invalid, f_invalid, sub_disabled, exp_disabled
+        else:
+            return hi_res, resampler, alert, style, r_invalid, h_invalid, f_invalid, sub_disabled, exp_disabled
+
+
+    #PLOT SET CHOSEN - SET PLOTS & TRACES
     @app.callback(
-        Output('plot_chooser-content', 'children'),
-        [Input("open-offcanvas-button", "n_clicks"), Input('plots_store', 'data')])
-    def update_plot_chooser(button, plots):
-        content = [dbc.CardHeader("Select Plots:", className="card-title",)]
-        content.append(html.Div(
+        [Output('plots_store', 'data'), Output('plot_chooser-content', 'children'),
+        Output('traces_store', 'data'), Output('trace_chooser-content', 'children'),
+        Output('plot_set_store', 'data'), Output('plot_set_drop', 'value'),
+        Output("offcanvas-scrollable", "is_open")],
+        [Input("open-offcanvas-button", "n_clicks"), Input('plot_set_drop', 'value'),
+        Input({'type': 'plot_check', 'index': ALL}, 'value'), Input({'type': 'trace_check', 'index': ALL}, 'value')],
+        [State('plots_store', 'data'), State('traces_store', 'data'), State('plot_set_store', 'data'), State("offcanvas-scrollable", "is_open"),
+        State('plot_chooser-content', 'children'), State('trace_chooser-content', 'children')])
+    def update_plots(n1, plot_set_str, plots_chosen, traces_chosen, plots, traces, plot_set_old, is_open, old_plot_content, old_trace_content):
+        ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+
+        if ctx.triggered[0]['value'] is None:
+            raise PreventUpdate
+
+        if 'plot_check' in ctx_input:
+            n1 = 0
+            plots_chosen[0].sort() #sort alpha
+            plots_chosen[0].sort(key=len) #sort by length (graph10+)
+            new_plots = {}
+            new_traces = {}
+            for plot in plots_chosen[0]:
+                new_plots[plot] = config.config['dcc_plot_names'][plot]
+                if plot in traces.keys():
+                    new_traces[plot] = traces[plot]
+                else:
+                    new_traces[plot] = config.config['dcc_trace_names'][plot]
+            
+            for plot_set_id in config.config['plot_sets']:
+                if new_traces == config.config['plot_set_plots'][plot_set_id]:
+                    plot_set = plot_set_id
+                    break
+                else:
+                    plot_set = -1
+        elif ctx_input == 'plot_set_drop':
+            n1 = 0
+            plot_set = int(plot_set_str)
+            if plot_set != -1:
+                new_plots = func.getPlots(plot_set)
+                new_traces = {}
+                for plot in config.figs['dcc_plot_figs']:
+                    if plot.id in config.config['plot_set_plots'][plot_set].keys():
+                        new_traces[plot.id] = config.config['plot_set_plots'][plot_set][plot.id]
+                        new_traces[plot.id].sort()
+            else:
+                new_plots = plots
+                new_traces = traces
+        elif "trace_check" in ctx_input:
+                n1 = 0
+                new_traces = traces
+                plot = ctx.triggered[0]['prop_id'].split('"')[3].split('_')[0]
+                new_traces[plot] = ctx.triggered[0]['value']
+        else:
+            new_plots = plots
+            new_traces = traces
+            plot_set = plot_set_old
+
+        plot_content = [dbc.CardHeader("Select Plots:", className="card-title",)]
+        plot_content.append(html.Div(
             dbc.Checklist(
-                id='plot_chooser',
+                id={
+                    'type': 'plot_check',
+                    'index': 'plots',
+                },
                 options=[{'label':config.config['dcc_plot_names'][plot], 'value':plot} for plot in config.config['dcc_plot_names']],
-                value=list(plots.keys()),
+                value=list(new_plots.keys()),
                 inline=True,
             ), className="p-3", id='loading2'),
         )
-        content_card = dbc.Row(dbc.Col(dbc.Card(content)))
-        return content_card
+        plot_content_card = dbc.Row(dbc.Col(dbc.Card(plot_content)))
 
-    #PLOT SET CHOSEN - SET TRACES
-    @app.callback(
-        Output('traces_store', 'data'),
-        [Input('plot_set_store', 'data'), Input('plot_chooser', 'value'), Input({'type': 'trace_check', 'index': ALL}, 'value')],
-        [State('traces_store', 'data')])
-    def update_plots(plot_set, plots, traces_chosen, old_traces):
-        ctx = dash.callback_context
-        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
-
-        if ctx_input == 'plot_chooser':
-            plots.sort() #sort alpha
-            plots.sort(key=len) #sort by length (graph10+)
-            new_content = {}
-            for plot in plots:
-                if plot in old_traces.keys():
-                    new_content[plot] = old_traces[plot]
-                else:
-                    new_content[plot] = config.config['dcc_trace_names'][plot]
-            return new_content
-        elif ctx_input == 'plot_set_store':
-            if plot_set != -1:
-                
-                traces = {}
-                for plot in config.figs['dcc_plot_figs']:
-                    if plot.id in config.config['plot_set_plots'][plot_set].keys():
-                        traces[plot.id] = config.config['plot_set_plots'][plot_set][plot.id]
-                        traces[plot.id].sort()
-
-                return traces
-            else:
-                return old_traces
-        elif "index" in ctx_input:
-                
-                plot = ctx.triggered[0]['prop_id'].split('"')[3].split('_')[0]
-
-                old_traces[plot] = ctx.triggered[0]['value']
-
-                return old_traces
-        else:
-            return old_traces
-
-    #TRACE CHOOSER
-    @app.callback(
-        Output('trace_chooser-content', 'children'),
-        [Input('plot_chooser', 'value'), Input('traces_store', 'data')], [State('plot_set_store', 'data')])
-    def update_trace_chooser(plots, traces, plot_set):
-        plots.sort() #sort alpha
-        plots.sort(key=len) #sort by length (graph10+)
-        
         card_contents = [dbc.CardHeader("Select traces:", className="card-title",)]
         for plot in config.figs['dcc_plot_figs']:
-            if plot.id in plots:
+            if plot.id in new_plots:
                 plot_name = re.sub('<.*?>', ' ', plot.figure.layout.yaxis.title.text)
-                content = [dbc.CardHeader(plot_name, className="card-title",)]
-                content.append(html.Div(
+                trace_content = [dbc.CardHeader(plot_name, className="card-title",)]
+                trace_content.append(html.Div(
                     dbc.Checklist(
                         id={
                             'type': 'trace_check',
                             'index': plot.id + '_traces',
                         },
                         options=[{'label':re.sub('<.*?>', '', trace), 'value':trace} for trace in config.config['dcc_trace_names'][plot.id]],
-                        value=traces[plot.id],
+                        value=new_traces[plot.id],
                         inline=True,
                         input_checked_style={
                             "backgroundColor": "#fa7268",
                             "borderColor": "#ea6258",
                         },
                     ), className="p-3"))
-                card_contents.append(dbc.Col(content, className = 'px-3'))
-        return dbc.Row(dbc.Card(card_contents, id='trace_chooser'))
+                card_contents.append(dbc.Col(trace_content, className = 'px-3'))
+        trace_content_card = dbc.Row(dbc.Card(card_contents, id='trace_chooser'))
 
-    #UPDATE PLOT_SET DROP
-    @app.callback(
-        Output('plot_set_drop', 'value'),
-        [Input('offcanvas-scrollable', 'is_open')],
-        [State('plot_set_store', 'data'), State('plots_store', 'data'), State('traces_store', 'data'), State('plot_set_drop', 'value')]
-    )
-    def update_plot_set_dropdown(is_open, plot_set, plots, traces, drop):
-        if not is_open:
-            for plot_set in config.config['plot_sets']:
-                if traces == config.config['plot_set_plots'][plot_set]:
-                    return str(plot_set)
-            return str(-1)
-        return drop
+        if new_plots == plots:
+            new_plots = dash.no_update
+            if old_plot_content is not None:
+                plot_content_card = dash.no_update
+        if new_traces == traces:
+            new_traces = dash.no_update
+            if old_trace_content is not None:
+                trace_content_card = dash.no_update
+        plot_set_str = str(plot_set)
+        if plot_set == plot_set_old:
+            plot_set = dash.no_update
+            plot_set_str = dash.no_update
+        if n1:
+            is_open = not is_open
 
-    #SUBMIT INTERVAL
-    @app.callback(Output('submit_interval', 'disabled'),
-                [Input('submit_val', 'n_clicks'), Input('export_submit', 'n_clicks'), Input('chart_store', 'data')])
-    def enable_interval(submit, export, chart):
+        return new_plots, plot_content_card, new_traces, trace_content_card, plot_set, plot_set_str, is_open
+    
+    #SUBMIT CHART
+    @app.callback([Output('chart-content', 'children'), Output('export_msg', 'children')],
+                [Input('submit_flag', 'data'), Input('export_flag', 'data')],
+                [State('dates','data'), State('resampler', 'data'),
+                State('plots_store', 'data'), State('traces_store', 'data'), State('plot_set_store', 'data'),
+                State('height_set', 'value'), State('font_set', 'value'),
+                State('chart-content', 'children'), State('export_msg', 'children'), 
+                State('html_on', 'value'), State('csv_on', 'value'), State('pdf_on', 'value'), State('png_on', 'value'),
+                State('pdf_grp', 'value'), State('png_grp', 'value')])
+    def create_content(submit, export, dates_selected, resample, plots, traces, plot_set, height, font, chart_content, export_msg,
+                        html_on, csv_on, pdf_on, png_on, pdf_grp, png_grp):
         ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
 
-        for ctx_in in ctx.triggered:
-            if ctx_in['prop_id'].split('.')[0] == 'chart_store':
-                config.fsc.set("submit_progress", str(0))  # clear progress
-                return True
-        if submit > 0 or export > 0:
-            return False
+        if ctx.triggered[0]['value'] is None:
+            raise PreventUpdate
+        
+        sorted_keys = sorted(sorted(plots.keys()), key=len)
+        plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
+        content = func.create_chart_content(dates_selected, plots, resample, traces, height, font)
+        if submit:
+            load_card = html.Div(id='loading', children=content)
+            return load_card, dash.no_update
+        elif export:
+            if html_on:
+                print("HTML")
+            if csv_on:
+                print("CSV")
+            if pdf_on:
+                print("PDF")
+            if png_on:
+                print("PNG")
+            export_alert = dbc.Alert([html.I(className="bi bi-check-circle-fill me-2"), "Export complete",],
+            color="success",
+            className="d-flex align-items-center mb-0 py-0")
+            config.fsc.set("export_progress", str(1))  # update progress
+            return dash.no_update, export_alert
         else:
-            return True
-
-    #SUBMIT CHART
-    @app.callback(Output('chart-content', 'children'),
-                [Input('chart_store', 'data')])
-    def render_content(content):
-        return html.Div(id='loading', children=content)
-
-    #SUBMIT CHART
-    @app.callback(Output('submit_interval', 'n_intervals'),
-                [Input('chart_store', 'data')])
-    def render_content(content):
-        return 0
-
-    #SUBMIT CHART
-    @app.callback(Output('chart_store', 'data'),
-                [Input('submit_interval', 'n_intervals')],
-                [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
-                State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value'),
-                State('chart-content', 'children')])
-    def create_content(n_intervals, plot_set, dates_selected, plots, resample, traces, height, font, chart_content):
-        #time.sleep(2)
-        if n_intervals == 1:
-            sorted_keys = sorted(sorted(plots.keys()), key=len)
-            plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
-            content = func.create_chart_content(dates_selected, plots, resample, traces, height, font)
-            return content
-        else:
+            time.sleep(2)
             raise PreventUpdate
 
     #SUBMIT PROGRESS
-    @app.callback(Output("submit_progress", "value"), Trigger("submit_interval", "n_intervals"))
-    def update_progress():
-        value = config.fsc.get("submit_progress")  # get progress
-        if value is None:
+    @app.callback(
+        [Output('submit_val', 'n_clicks'), Output('submit_flag', 'data'),
+        Output("submit_progress", "value"), Output('submit_interval', 'disabled'),
+        Output('export_submit', 'n_clicks'), Output('export_flag', 'data'),
+        Output("export_progress", "value"), Output('export_interval', 'disabled')],
+        [Input('submit_val', 'n_clicks'), Input('export_submit', 'n_clicks')],
+        [Trigger("submit_interval", "n_intervals"), Trigger("export_interval", "n_intervals")])
+    def update_progress(submit, export):
+        ctx = dash.callback_context
+        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+        if ctx.triggered[0]['value'] is None:
             raise PreventUpdate
-        return int(float(config.fsc.get("submit_progress")) * 100)
 
+        if ctx_input == 'submit_interval' or ctx_input == 'submit_val':
+            if submit > 0:
+                config.fsc.set("submit_progress", str(0))  # clear progress
+                return 0, True, 0, False, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            s_value = config.fsc.get("submit_progress")  # get progress
+            if s_value is None:
+                raise PreventUpdate
+            s_progress = int(float(s_value) * 100)
+            if s_progress is 100:
+                return dash.no_update, False, 100, True, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, s_progress, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+        elif ctx_input == 'export_interval' or ctx_input == 'export_submit':
+            if export > 0:
+                config.fsc.set("submit_progress", str(0))  # clear progress
+                config.fsc.set("export_progress", str(0))  # clear progress
+                return 0, False, 0, True, 0, True, 0, False
+            s_value = config.fsc.get("submit_progress")  # get progress
+            if s_value is None:
+                raise PreventUpdate
+            s_progress = int(float(s_value) * 100)
+            if s_progress is not 100:
+                return dash.no_update, dash.no_update, s_progress, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            e_value = config.fsc.get("export_progress")  # get progress
+            if e_value is None:
+                raise PreventUpdate
+            e_progress = int(float(e_value) * 100)
+            if e_progress is 100:
+                return dash.no_update, dash.no_update, 100, dash.no_update, dash.no_update, False, 100, True
+            else:
+                return dash.no_update, dash.no_update, 100, dash.no_update, dash.no_update, dash.no_update, e_progress, dash.no_update
+            
     #PDF
     @app.callback(Output('pdf_grp', 'children'),
                 [Input('pdf_on', 'value'), Input({'type': 'pdf_size_select', 'index': ALL}, 'n_clicks')],
@@ -347,58 +378,49 @@ def register_callbacks(app):
 
         return png_grp
 
-    #EXPORT ENABLE
-    @app.callback(Output('export_submit', 'disabled'),
-                [Input('html_on', 'value'), Input('pdf_on', 'value'), Input('png_on', 'value')])
-    def export_update(html_on, pdf_on, png_on):
-        if html_on is not None or pdf_on is not None or png_on is not None:
-            return False
-        else:
-            return True
+    # #EXPORT INTERVAL
+    # @app.callback(Output('export_interval', 'disabled'),
+    #             [Input('export_submit', 'n_clicks'), Trigger("export_interval", "n_intervals")])
+    # def enable_interval(export):
+    #     ctx = dash.callback_context
+    #     ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
 
-    #EXPORT INTERVAL
-    @app.callback(Output('export_interval', 'disabled'),
-                [Input('export_submit', 'n_clicks'), Trigger("export_interval", "n_intervals")])
-    def enable_interval(export):
-        ctx = dash.callback_context
-        ctx_input = ctx.triggered[0]['prop_id'].split('.')[0]
+    #     if ctx_input == 'export_interval':
+    #         value = config.fsc.get("export_progress")  # get progress
+    #         if value is None:
+    #             return True
+    #         if int(float(value) * 100) == 100:
+    #             config.fsc.set("export_progress", str(0))  # clear progress
+    #             return True
+    #         elif int(float(value) * 100) == 0:
+    #             return True
 
-        if ctx_input == 'export_interval':
-            value = config.fsc.get("export_progress")  # get progress
-            if value is None:
-                return True
-            if int(float(value) * 100) == 100:
-                config.fsc.set("export_progress", str(0))  # clear progress
-                return True
-            elif int(float(value) * 100) == 0:
-                return True
+    #     if export > 0:
+    #         return False
+    #     else:
+    #         return True
 
-        if export > 0:
-            return False
-        else:
-            return True
+    # #EXPORT
+    # @app.callback(Output('export_msg', 'children'),
+    #             [Input('export_submit', 'n_clicks')],
+    #             [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
+    #             State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value'),
+    #             State('html_on', 'value'), State('pdf_on', 'value'), State('png_on', 'value'), State('pdf_grp', 'children'), State('png_grp', 'children')])
+    # def render_content(n_clicks, plot_set, dates_selected, plots, resample, traces, height, font, html_on, pdf_on, png_on, pdf_grp, png_grp):
+    #     #time.sleep(2)
+    #     sorted_keys = sorted(sorted(plots.keys()), key=len)
+    #     plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
+    #     content = func.create_chart_content(dates_selected, plots, resample, traces, height, font)
 
-    #EXPORT
-    @app.callback(Output('export_msg', 'children'),
-                [Input('export_submit', 'n_clicks')],
-                [State('plot_set_store', 'data'), State('date_slider','value'), State('plots_store', 'data'),
-                State('resampler', 'data'), State('traces_store', 'data'), State('height_set', 'value'), State('font_set', 'value'),
-                State('html_on', 'value'), State('pdf_on', 'value'), State('png_on', 'value'), State('pdf_grp', 'children'), State('png_grp', 'children')])
-    def render_content(n_clicks, plot_set, dates_selected, plots, resample, traces, height, font, html_on, pdf_on, png_on, pdf_grp, png_grp):
-        #time.sleep(2)
-        sorted_keys = sorted(sorted(plots.keys()), key=len)
-        plots = dict(sorted(plots.items(), key=lambda pair: sorted_keys.index(pair[0])))
-        content = func.create_chart_content(dates_selected, plots, resample, traces, height, font)
+    #     export_alert = dbc.Alert([html.I(className="bi bi-check-circle-fill me-2"), "Export complete",],
+    #         color="success",
+    #         className="d-flex align-items-center mb-0 py-0")
+    #     return export_alert
 
-        export_alert = dbc.Alert([html.I(className="bi bi-check-circle-fill me-2"), "Export complete",],
-            color="success",
-            className="d-flex align-items-center mb-0 py-0")
-        return export_alert
-
-    #EXPORT PROGRESS
-    @app.callback(Output("export_progress", "value"), Trigger("export_interval", "n_intervals"))
-    def update_progress():
-        value = config.fsc.get("export_progress")  # get progress
-        if value is None:
-            raise PreventUpdate
-        return int(float(config.fsc.get("export_progress")) * 100)
+    # #EXPORT PROGRESS
+    # @app.callback(Output("export_progress", "value"), Trigger("export_interval", "n_intervals"))
+    # def update_progress():
+    #     value = config.fsc.get("export_progress")  # get progress
+    #     if value is None:
+    #         raise PreventUpdate
+    #     return int(float(config.fsc.get("export_progress")) * 100)

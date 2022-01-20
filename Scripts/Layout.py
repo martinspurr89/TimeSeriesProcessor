@@ -55,7 +55,7 @@ def prepare_layout():
         dbc.CardHeader("DateTime Range", className="card-title",),
         html.Div([
             dbc.Row([
-                dcc.Store(id="dates", data=[start, end]),
+                dcc.Store(id="dates", data=[func.unixTimeMillis(start), func.unixTimeMillis(end)]),
                 dbc.Col([datetime_dropdown]),
                 dbc.Col([datetime_pick]),
                 dbc.Col([])
@@ -179,7 +179,7 @@ def prepare_layout():
     components['submit_card'] = dbc.Card([
         dbc.CardHeader("Load Charts", class_name="card-title",),
         dbc.Row([
-            dcc.Store(id="chart_store"),
+            dcc.Store(id = 'submit_flag'),
             dbc.Col(submit_input, width=3, style = {'align-self': 'center'}),
             dbc.Col(submit_progress, style = {'align-self': 'center'})
         ])
@@ -220,15 +220,24 @@ def prepare_layout():
     def_png_dpi = config.config['png_size_dict'][min(config.config['png_size_dict'].keys())]['png_dpi']
 
     html_check = dbc.InputGroup([
-        dbc.InputGroupText(dbc.Checklist(
-                id="html_on",
-                options=[{'label': 'HTML', 'value': 'HTML'}],
-                switch=True,
-                input_checked_style={
-                    "backgroundColor": "#ffc107",
-                    "borderColor": "#ffc107",
-                },
-            ), style = {'max-width': '20%', 'width': '20%'}),
+    dbc.InputGroupText(dbc.Checklist(
+            id="csv_on",
+            options=[{'label': 'CSV', 'value': 'CSV'}],
+            switch=True,
+            input_checked_style={
+                "backgroundColor": "#ffc107",
+                "borderColor": "#ffc107",
+            },
+        ), style = {'max-width': '20%', 'width': '20%'}),
+    dbc.InputGroupText(dbc.Checklist(
+            id="html_on",
+            options=[{'label': 'HTML', 'value': 'HTML'}],
+            switch=True,
+            input_checked_style={
+                "backgroundColor": "#ffc107",
+                "borderColor": "#ffc107",
+            },
+        ), style = {'max-width': '20%', 'width': '20%'}),
     ])
 
     pdf_check = dbc.InputGroup([
@@ -297,10 +306,10 @@ def prepare_layout():
             html.Div(export_button, className='pt-3'),
         style={'max-width': '20%'}),
         dbc.Col(
-            export_progress
+            html.Div(export_progress, className='pt-3')
         , style = {'align-self':'center'}),
         dbc.Col(
-            html.Div(id="export_msg", className = 'pt-3 pl-2')
+            html.Div(id='export_msg', className = 'pt-3 pl-2')
         , style = {'align-self':'center'})
     ]
         
@@ -311,7 +320,8 @@ def prepare_layout():
                 dbc.Row(html_check, class_name = "g-0"),
                 dbc.Row(pdf_check, class_name = "g-0"),
                 dbc.Row(png_check, class_name = "g-0"),
-                dbc.Row(export_div, class_name = "g-0")
+                dbc.Row(export_div, class_name = "g-0"),
+                dcc.Store(id = 'export_flag')
             ]),
         ], className = 'p-3')
     ])

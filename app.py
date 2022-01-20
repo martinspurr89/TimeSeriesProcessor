@@ -64,6 +64,6 @@ print("App ready at: " + str(finish) + " (" + str(finish - begin) + ")")
 
 if __name__ == '__main__':
     Timer(1, func.open_browser).start()
-    app.run_server(port=8050, debug=True, use_reloader=False)
+    app.run_server(port=8050)#, debug=True, use_reloader=False)
 
 ####
