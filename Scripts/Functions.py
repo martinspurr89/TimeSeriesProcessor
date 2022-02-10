@@ -1,3 +1,5 @@
+import os
+import shutil
 import time
 import pandas as pd
 import numpy as np
@@ -10,6 +12,10 @@ import math
 import humanize
 from datetime import datetime, timedelta
 from copy import deepcopy
+import plotly
+from PIL import Image
+import warnings
+from PyPDF2 import PdfFileMerger, PdfFileReader, PdfFileWriter
 
 import Scripts.config as config
 
@@ -234,15 +240,27 @@ def setAxisRange(plot_fig, plot, chart_data, traces_info):
 
     return(plot_fig)
 
-def create_chart_content(dates_selected, plots, resample, traces, height, font):
-    content = []
+def create_chart_data(dates_selected, resample, plots, traces):
     chart_data = config.data['all_data'].query(
             'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
             'DateTime < "' + str(unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
+
+    trace_codes = []
+    for plot_id in traces:
+        plot_name = config.config['dcc_plot_codes'][plot_id]
+        trace_list = traces[plot_id]
+        par_codes = list(config.config['plot_pars'].query('plot == "' + plot_name + '"').query('parameter_lab in @trace_list')['parameter'].unique())
+        err_codes = [p + "_err" for p in par_codes]
+        codes = chart_data.columns[chart_data.columns.isin(par_codes + err_codes)]
+        trace_codes.extend(codes)
+    chart_data = chart_data[trace_codes]
     if resample > 0:
         chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
     chart_data = chart_data.reset_index()
+    return chart_data
 
+def create_chart_content(chart_data, dates_selected, plots, traces, height, font):
+    content = []
     for plot_orig in config.figs['dcc_plot_figs']:
         if plot_orig.id in plots:
             plot_name = config.config['dcc_plot_codes'][plot_orig.id]
@@ -250,10 +268,174 @@ def create_chart_content(dates_selected, plots, resample, traces, height, font):
             plot = modifyPlot(plot, plot_name, plots, font)
             plot = setAxisRange(plot, plot_name, chart_data, traces[plot_orig.id])
             content.append(html.Div(id='loading', children=plot))
-            progress_pc = (list(plots.keys()).index(plot_orig.id) + 1) / len(plots.keys())
+            progress_pc = (list(plots.keys()).index(plot_orig.id) + 2) / (len(plots.keys()) + 1)
             config.fsc.set("submit_progress", str(progress_pc))  # update progress
     return content
 
 def open_browser():
     port = 8050
     webbrowser.open_new("http://localhost:{}".format(port))
+
+def createOfflineCharts(content, plots, height, export_progress, export_denom):
+    div_chart_fig = {}
+    p = 0
+    for plot in content:
+        div_chart_fig[plot.children.id] = plotly.offline.plot(plot.children.figure, include_plotlyjs=False, output_type='div')
+        div_chart_fig[plot.children.id] = div_chart_fig[plot.children.id].replace('style="height:100%; width:100%;"',
+        'style="height:' + str(height) + '%; width:98%;"')
+        if p == len(plots)-1: #if the last chart
+            div_chart_fig[plot.children.id] = div_chart_fig[plot.children.id].replace('style="height:' + str(height) + '%;"', 'style="height:' + str(height * 1.25) + '%;"')
+        p += 1
+        export_progress_new = export_progress + (p / (len(content) + 1))
+        config.fsc_e.set("export_progress", str(export_progress_new / export_denom))  # update progress
+    return(div_chart_fig)
+
+def exportHTML(offline_chart, dates_selected, resample, export_name):
+    #Build start and end strings
+    html_string_start = '''
+    <html>
+        <head>
+            <style>body{ margin:0 100; background:white; font-family: Arial, Helvetica, sans-serif}</style>
+        </head>
+        <body>
+            <h1>''' + config.config['project'] + ''' interactive data</h1>
+            <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+            '''
+
+    html_string_end = '''
+        </body>
+    </html>'''
+
+    #Create html header
+    html_string = html_string_start
+
+    chart_start_date = unixToDatetime(dates_selected[0])
+    chart_end_date = unixToDatetime(dates_selected[1])
+    html_string = html_string + '''<p>''' + humanize.naturaldate(chart_start_date) + ''' to ''' + humanize.naturaldate(chart_end_date)
+
+    if resample != 0:
+        html_string = html_string + ''' | Data resampled over ''' + str(resample) + ''' minutes'''
+    
+    html_string = html_string + '''</p>'''
+
+    #Add divs to html string
+    for plot in offline_chart:
+        html_string = html_string + offline_chart[plot]
+
+    #write finished html
+    html_string + html_string_end
+    html_filename = export_name + ".html"
+    hreport = open(config.io_dir / "Output" / html_filename,'w', encoding='utf-8')
+    hreport.write(html_string)
+    hreport.close()
+
+def deleteFolderContents(folder):
+    if not os.path.exists(folder):
+        folder.mkdir(parents=True, exist_ok=True)
+    else:
+        for filename in os.listdir(folder):
+            file_path = folder / filename
+            try:
+                if os.path.isfile(file_path) or os.path.islink(file_path):
+                    os.unlink(file_path)
+                elif os.path.isdir(file_path):
+                    shutil.rmtree(file_path)
+            except Exception as e:
+                print('Failed to delete %s. Reason: %s' % (file_path, e))
+
+def createTempChartDir(export_name, otype):
+    temp_path = config.io_dir / "Temp" / (otype + "s")
+    deleteFolderContents(temp_path)
+    odir = temp_path /  export_name
+    odir.mkdir(parents=True, exist_ok=True)
+    return(odir)
+
+def exportImage(export_progress, export_denom, export_name, content, plots, otype, owidth, oheight, odpi = 300):
+    image_dir = createTempChartDir(export_name, otype.upper())
+    divisor = len(plots)-1 + 1.25
+    scaler = {'png': odpi/96,
+              'pdf': 1}
+    #Export individual images
+    p = 0
+    for plot in content:
+        height = oheight/divisor
+        if p == len(plots)-1: #if the last chart
+            height = height * 1.25
+        
+        chart_to_export = deepcopy(plot.children.figure)
+        chart_to_export.update_layout(width=owidth,
+                                            height=height)
+        chart_to_export.write_image(str(image_dir / (str(p).zfill(2) + "_" + plot.children.id + "." + otype)),
+                                            scale=scaler)
+        p = p + 1
+
+    #Combine individual images and output to file
+    if otype == 'png':
+        combinePNG(image_dir, export_name, export_progress, export_denom)
+    elif otype == 'pdf':
+        combinePDF(image_dir, export_name, export_progress, export_denom)
+    
+    #Delete temp images
+    try:
+        shutil.rmtree(image_dir)
+    except OSError as e:
+        print ("Error: %s - %s." % (e.filename, e.strerror))
+
+def combinePNG(png_dir, export_name, export_progress, export_denom):
+    images = [Image.open(png_dir / x) for x in os.listdir(png_dir)]
+    widths, heights = zip(*(i.size for i in images))
+
+    max_width = max(widths)
+    total_height = sum(heights)
+
+    new_im = Image.new('RGBA', (max_width, total_height))
+
+    y_offset = 0
+    i = 0
+    for im in images:
+        new_im.paste(im, (0,y_offset))
+        y_offset += im.size[1]
+        i += 1
+        export_progress_new = export_progress + (i) / (len(images) + 1)
+        config.fsc_e.set("export_progress", str(export_progress_new / export_denom))  # update progress
+
+    png_filename = export_name + ".png"
+    new_im.save(config.io_dir / "Output" /  png_filename)
+    export_progress += 1
+    config.fsc_e.set("export_progress", str(export_progress / export_denom))  # update progress
+
+def combinePDF(pdf_dir, export_name, export_progress, export_denom):
+    #Combine pdfs
+    with warnings.catch_warnings():
+        warnings.filterwarnings('ignore', r'.*Multiple definitions in dictionary.*')
+        merger = PdfFileMerger(strict=False)
+        for filename in os.listdir(pdf_dir):
+            merger.append(PdfFileReader(str(pdf_dir / filename), strict=False))
+        with open(str(pdf_dir / "all_pages.pdf"), 'wb') as fh:
+            merger.write(fh)
+
+        #Create combined pdf on one page
+        with open(str(pdf_dir / 'all_pages.pdf'), 'rb') as input_file:
+            # load input pdf
+            input_pdf = PdfFileReader(input_file, strict=False)
+            num_pages = input_pdf.getNumPages()
+            output_pdf = input_pdf.getPage(num_pages-1)
+
+            for p in reversed(range(0,num_pages-1)):
+                second_pdf = input_pdf.getPage(p)
+                # dimensions for offset from loaded page (adding it to the top)
+                offset_x = 0 # use for x offset -> output_pdf.mediaBox[2]
+                offset_y = output_pdf.mediaBox[3]
+                #merge pdf pages
+                output_pdf.mergeTranslatedPage(second_pdf, offset_x, offset_y, expand=True)
+                export_progress_new = export_progress + (num_pages - p) / (num_pages + 1)
+                config.fsc_e.set("export_progress", str(export_progress_new / export_denom))  # update progress
+
+            # write finished pdf
+            output_file = config.io_dir / "Output" / (export_name + ".pdf")
+            with open(output_file, 'wb') as out_file:
+                    write_pdf = PdfFileWriter()
+                    write_pdf.addPage(output_pdf)
+                    write_pdf.write(out_file)
+            export_progress += 1
+            config.fsc_e.set("export_progress", str(export_progress / export_denom))  # update progress

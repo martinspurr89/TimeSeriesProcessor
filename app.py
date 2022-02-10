@@ -15,7 +15,6 @@ import Scripts.Functions as func
 import Scripts.Layout as Layout
 from Scripts.Callbacks  import register_callbacks
 
-
 def getConfigData():
     dfile_path = config.io_dir / "Output" / 'all_data.pbz2'
     pfile_path = config.io_dir / "Output" / 'sub_config2.pbz2'
@@ -57,7 +56,8 @@ register_callbacks(app) # Add callbacks
 # Create a server side resource.
 config.fsc = FileSystemCache("cache_dir")
 config.fsc.set("submit_progress", None)
-config.fsc.set("export_progress", None)
+config.fsc_e = FileSystemCache("export_cache_dir")
+config.fsc_e.set("export_progress", None)
 
 finish = datetime.now(timezone('UTC')).replace(microsecond=0)
 print("App ready at: " + str(finish) + " (" + str(finish - begin) + ")")

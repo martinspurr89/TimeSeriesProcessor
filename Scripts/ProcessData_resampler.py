@@ -86,7 +86,7 @@ def getConfig():
 
 def saveObject(object_to_save, filepath):
     with bz2.BZ2File(filepath, 'wb') as f:
-        pickle.dump(object_to_save, f)
+        pickle.dump(object_to_save, f, protocol=4)
 
 # Info file functions
 def setUTCDatetime(date_str, old_tz, dt_format = "%d/%m/%Y %H:%M:%S"):
@@ -319,7 +319,7 @@ def averageReps(df):
                 if ave_col != col:
                     if ave_col not in ave_cols:
                         cols = config.config['info']['parameters'].query('parameter_ave == "' + ave_col + '"')['parameter'].to_list()
-                        
+                        cols = [col for col in cols if col in df.columns]
                         df[ave_col] = df[cols].mean(axis=1)
                         if len(cols) > 2:
                             df[ave_col + "_err"] = np.nanstd(df[cols], axis=1)

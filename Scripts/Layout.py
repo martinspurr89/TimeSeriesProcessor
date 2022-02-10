@@ -176,13 +176,36 @@ def prepare_layout():
         dcc.Interval(id="submit_interval", interval=500, disabled=True)
     ], className='p-3')
 
+    export_input = html.Div([
+        dbc.Button(
+            "EXPORT",
+            id="export_submit",
+            n_clicks=0,
+            color="warning",
+            disabled = True
+        )
+    ], className='p-3')
+
+    export_progress = html.Div([
+        dbc.Progress(id="export_progress", striped=True, value=0, max=100, color="warning"),
+        dcc.Interval(id="export_interval", interval=500, disabled=True)
+    ], className='p-3')
+
     components['submit_card'] = dbc.Card([
         dbc.CardHeader("Load Charts", class_name="card-title",),
         dbc.Row([
             dcc.Store(id = 'submit_flag'),
             dbc.Col(submit_input, width=3, style = {'align-self': 'center'}),
             dbc.Col(submit_progress, style = {'align-self': 'center'})
-        ])
+        ]),
+        dbc.Row([
+            dcc.Store(id = 'export_flag'),
+            dbc.Col(export_input, width=3, style = {'align-self': 'center'}),
+            dbc.Col(export_progress, style = {'align-self': 'center'})
+        ]),
+        dbc.Row(
+            html.Div(id='export_msg', className = 'pb-3', style={'textAlign': 'center'})
+        , class_name = 'px-3')
     ])
 
     pdf_page_sizes = []
@@ -220,108 +243,121 @@ def prepare_layout():
     def_png_dpi = config.config['png_size_dict'][min(config.config['png_size_dict'].keys())]['png_dpi']
 
     html_check = dbc.InputGroup([
-    dbc.InputGroupText(dbc.Checklist(
-            id="csv_on",
-            options=[{'label': 'CSV', 'value': 'CSV'}],
-            switch=True,
-            input_checked_style={
-                "backgroundColor": "#ffc107",
-                "borderColor": "#ffc107",
-            },
-        ), style = {'max-width': '20%', 'width': '20%'}),
-    dbc.InputGroupText(dbc.Checklist(
+        dbc.InputGroupText(dbc.Checklist(
             id="html_on",
             options=[{'label': 'HTML', 'value': 'HTML'}],
+            value = [],
             switch=True,
             input_checked_style={
                 "backgroundColor": "#ffc107",
                 "borderColor": "#ffc107",
             },
-        ), style = {'max-width': '20%', 'width': '20%'}),
+        ), style = {'max-width': '100%', 'width': '100%'}),
     ])
 
-    pdf_check = dbc.InputGroup([
+    csv_check = dbc.InputGroup([
         dbc.InputGroupText(dbc.Checklist(
-                id="pdf_on",
-                options=[{'label': 'PDF', 'value': 'PDF'}],
-                switch=True,
-                input_checked_style={
-                    "backgroundColor": "#ffc107",
-                    "borderColor": "#ffc107",
-                },
-            ), style = {'max-width': '20%', 'width': '20%'}),
-        dbc.DropdownMenu(
+            id="csv_on",
+            options=[{'label': 'CSV', 'value': 'CSV'}],
+            value = [],
+            switch=True,
+            input_checked_style={
+                "backgroundColor": "#ffc107",
+                "borderColor": "#ffc107",
+            },
+        ), style = {'max-width': '100%', 'width': '100%'}),
+    ])
+    
+
+    pdf_check = html.Div([
+        dbc.InputGroup([
+            dbc.InputGroupText(dbc.Checklist(
+                    id="pdf_on",
+                    options=[{'label': 'PDF', 'value': 'PDF'}],
+                    value = [],
+                    switch=True,
+                    input_checked_style={
+                        "backgroundColor": "#ffc107",
+                        "borderColor": "#ffc107",
+                    },
+                ), style = {'max-width': '100%', 'width': '100%'}),
+        ]),
+        dbc.InputGroup([dbc.DropdownMenu(
             id='pdf_size_drop',
             label="Preset",
             color='secondary',
             children=pdf_page_sizes,
             disabled=True,
-        ),
-        dbc.InputGroupText("w"),
-        dbc.Input(id='pdf_width', type="number", min=1, step=1, placeholder="width", style={'max-width':'15%'}, value = def_pdf_width, disabled=True),
-        dbc.InputGroupText("h"),
-        dbc.Input(id='pdf_height', type="number", min=1, step=1, placeholder="height", style={'max-width':'15%'}, value = def_pdf_height, disabled=True),
+            style={'max-width':'100%', 'width': '100%'},
+            toggle_style={'max-width':'100%', 'width': '100%'},
+        )]),
+        dbc.InputGroup([
+            dbc.InputGroupText("w", style={'max-width':'35%', 'width': '35%'}),
+            dbc.Input(id='pdf_width', type="number", min=1, step=1, placeholder="width", value = def_pdf_width, disabled=True),
+        ]),
+        dbc.InputGroup([
+            dbc.InputGroupText("h", style={'max-width':'35%', 'width': '35%'}),
+            dbc.Input(id='pdf_height', type="number", min=1, step=1, placeholder="height", value = def_pdf_height, disabled=True),
+        ])
     ], id="pdf_grp")
 
-    png_check = dbc.InputGroup([
-        dbc.InputGroupText(dbc.Checklist(
+    png_check = html.Div([
+        dbc.InputGroup([
+            dbc.InputGroupText(dbc.Checklist(
                 id="png_on",
                 options=[{'label': 'PNG', 'value': 'PNG'}],
+                value = [],
                 switch=True,
                 input_checked_style={
                     "backgroundColor": "#ffc107",
                     "borderColor": "#ffc107",
                 },
-            ), style = {'max-width': '20%', 'width': '20%'}),
-        dbc.DropdownMenu(
+            ), style = {'max-width': '100%', 'width': '100%'}),
+        ]),
+        dbc.InputGroup([dbc.DropdownMenu(
             id='png_size_drop',
             label="Preset",
             color='secondary',
             children=png_page_sizes,
             disabled=True,
-        ),
-        dbc.InputGroupText("w"),
-        dbc.Input(id='png_width', type="number", min=1, step=1, placeholder="width", style={'max-width':'15%'}, value = def_png_width, disabled=True),
-        dbc.InputGroupText("h"),
-        dbc.Input(id='png_height', type="number", min=1, step=1, placeholder="height", style={'max-width':'15%'}, value = def_png_height, disabled=True),
-        dbc.InputGroupText("dpi"),
-        dbc.Input(id='png_dpi', type="number", min=1, step=1, placeholder="dpi", style={'max-width':'13%'}, value = def_png_dpi, disabled=True),
+            style = {'max-width': '100%', 'width': '100%'},
+            toggle_style={'max-width':'100%', 'width': '100%'}
+        )]),
+        dbc.InputGroup([
+            dbc.InputGroupText("w", style={'max-width':'35%', 'width': '35%'}),
+            dbc.Input(id='png_width', type="number", min=1, step=1, placeholder="width", value = def_png_width, disabled=True),
+        ]),
+        dbc.InputGroup([
+            dbc.InputGroupText("h", style={'max-width':'35%', 'width': '35%'}),
+            dbc.Input(id='png_height', type="number", min=1, step=1, placeholder="height", value = def_png_height, disabled=True),
+        ]),
+        dbc.InputGroup([
+            dbc.InputGroupText("dpi", style={'max-width':'35%', 'width': '35%'}),
+            dbc.Input(id='png_dpi', type="number", min=1, step=1, placeholder="dpi", value = def_png_dpi, disabled=True),
+        ]),
     ], id="png_grp")
 
-    export_button = dbc.Button(
-        "EXPORT",
-        id="export_submit",
-        n_clicks=0,
-        color="warning",
-        disabled = True
-    )
-
-    export_progress = html.Div([
-        dbc.Progress(id="export_progress", striped=True, value=0, max=100, color="success"),
-        dcc.Interval(id="export_interval", interval=500, disabled=True)
-    ], className='p-3')
     
-    export_div = [
-        dbc.Col(
-            html.Div(export_button, className='pt-3'),
-        style={'max-width': '20%'}),
-        dbc.Col(
-            html.Div(export_progress, className='pt-3')
-        , style = {'align-self':'center'}),
-        dbc.Col(
-            html.Div(id='export_msg', className = 'pt-3 pl-2')
-        , style = {'align-self':'center'})
-    ]
         
     components['export_card'] = dbc.Card([
         dbc.CardHeader("Export Settings", class_name="card-title",),
         html.Div([
-            dbc.Col([
-                dbc.Row(html_check, class_name = "g-0"),
-                dbc.Row(pdf_check, class_name = "g-0"),
-                dbc.Row(png_check, class_name = "g-0"),
-                dbc.Row(export_div, class_name = "g-0"),
-                dcc.Store(id = 'export_flag')
+            dbc.Row([
+                dbc.Col([
+                    dbc.Row([
+                        dbc.Col(csv_check),#, class_name = "g-0"),
+                        dbc.Col(html_check),#, class_name = "g-0"),
+                    ]),
+                    dbc.Row([
+                        dbc.Col(components['display_selector'], class_name = "pt-3"),
+                    ])
+                ]),
+                dbc.Col([
+                    dbc.Row([
+                        dbc.Col(pdf_check),#, class_name = "g-0"),
+                        dbc.Col(png_check)#, class_name = "g-0"),
+                    ])
+                ]),
             ]),
         ], className = 'p-3')
     ])
@@ -356,21 +392,18 @@ def serve_layout():
                     ])
                 ], width = 4),
                 dbc.Col([
-                    #DISPLAY
+                    #EXPORT
                     dbc.Row([
-                        html.Div(config.components['display_selector'])
+                        html.Div(config.components['export_card'])
                     ]),
+                ]),
+                dbc.Col([
                     #SUBMIT
                     dbc.Row([
                         html.Div(config.components['submit_card'])
                     ]),
                 ], width=3),
-                dbc.Col([
-                    #EXPORT
-                    dbc.Row([
-                        html.Div(config.components['export_card'])
-                    ]),
-                ])
+                
             ]),
         ], className="p-5 mb-0", style={'textAlign': 'center'}),
         #CHART
