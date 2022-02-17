@@ -10,6 +10,7 @@ import pickle
 import plotly.graph_objects as go
 from dash import dcc
 import re
+from copy import deepcopy
 
 import Scripts.config as config
 import Scripts.ProcessData_resampler as ProcessData
@@ -135,12 +136,12 @@ def addTrace(par, plot_fig):
         all_data_pars = [c for c in config.data['all_data'].columns[1:] if not "_err" in c]
 
 
-        x_data = config.data['all_data'].DateTime
-        y_data = config.data['all_data'][par]
+        x_data = deepcopy(config.data['all_data'].DateTime)
+        y_data = deepcopy(config.data['all_data'][par])
         error_bars = False
         if par + "_err" in all_data_pars:
             error_bars = True
-            y_error = config.data['all_data'][par + "_err"]
+            y_error = deepcopy(config.data['all_data'][par + "_err"])
 
         if any(par_info['point'] ==True) or any(par_info['bar'] ==True):
             if error_bars:

@@ -95,13 +95,13 @@ def addDatatoPlot(plot, traces_info, chart_data, dates_selected, plots, height):
                 "plot == '" + plot_name + "'").query(
                 "parameter_lab == '" + trace.name + "'")['parameter'][0]
             par_info = config.config['plot_pars'].query('parameter == "' + par + '"')
-            x_data = chart_data.DateTime
-            y_data = chart_data[par]
+            x_data = deepcopy(chart_data.DateTime)
+            y_data = deepcopy(chart_data[par])
             error_bars = False
             y_error = None
             if par + "_err" in config.data['all_data'].columns[1:]:
                 error_bars = True
-                y_error = chart_data[par + "_err"]
+                y_error = deepcopy(chart_data[par + "_err"])
 
             if trace.mode == "markers" or trace.line.shape == "hv" or par_info['point'][0] or par_info['bar'][0]:
                 if error_bars:
