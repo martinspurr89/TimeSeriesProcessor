@@ -262,7 +262,7 @@ def register_callbacks(app):
             if not export:
                 raise PreventUpdate
         
-        chart_data = func.create_chart_data(dates_selected, resample, plots, traces)
+        chart_data = func.create_chart_data(dates_selected, resample, traces)
         if export:
             export_progress = 0
             export_denom = (len([csv_on + html_on + pdf_on + png_on]))

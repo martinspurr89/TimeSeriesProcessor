@@ -36,34 +36,38 @@ def getConfigData():
         config.update = True
         getConfigData()
 
-begin = datetime.now(timezone('UTC')).replace(microsecond=0)
-print("Starting processing at: " + str(begin))
+def main():
+    global app
+    begin = datetime.now(timezone('UTC')).replace(microsecond=0)
+    print("Starting processing at: " + str(begin))
 
-ProcessData.processArguments()
-getConfigData()
-print("Config imported!")
+    ProcessData.processArguments()
+    getConfigData()
+    print("Config imported!")
 
-external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP]#, 'https://codepen.io/chriddyp/pen/bWLwgP.css']
-#app = JupyterDash('__name__')
-app = Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions = True)
-#app.scripts.config.serve_locally = True
+    external_stylesheets = [dbc.themes.BOOTSTRAP, dbc.icons.BOOTSTRAP]#, 'https://codepen.io/chriddyp/pen/bWLwgP.css']
+    #app = JupyterDash('__name__')
+    app = Dash(__name__, external_stylesheets=external_stylesheets, suppress_callback_exceptions = True)
+    #app.scripts.config.serve_locally = True
 
-##APP##
-config.components = Layout.prepare_layout() # Prepare layout
-app.layout = Layout.serve_layout
-register_callbacks(app) # Add callbacks
+    ##APP##
+    config.components = Layout.prepare_layout() # Prepare layout
+    app.layout = Layout.serve_layout
+    register_callbacks(app) # Add callbacks
 
-# Create a server side resource.
-config.fsc = FileSystemCache("cache_dir")
-config.fsc.set("submit_progress", None)
-config.fsc_e = FileSystemCache("export_cache_dir")
-config.fsc_e.set("export_progress", None)
+    # Create a server side resource.
+    config.fsc = FileSystemCache("cache_dir")
+    config.fsc.set("submit_progress", None)
+    config.fsc_e = FileSystemCache("export_cache_dir")
+    config.fsc_e.set("export_progress", None)
 
-finish = datetime.now(timezone('UTC')).replace(microsecond=0)
-print("App ready at: " + str(finish) + " (" + str(finish - begin) + ")")
+    finish = datetime.now(timezone('UTC')).replace(microsecond=0)
+    print("App ready at: " + str(finish) + " (" + str(finish - begin) + ")")
 
 if __name__ == '__main__':
-    Timer(1, func.open_browser).start()
-    app.run_server(port=8050)#, debug=True, use_reloader=False)
+    global app
+    main()
+    Timer(1, func.open_browser, [config.port]).start()
+    app.run_server(port=config.port)#, debug=True, use_reloader=False)
 
 ####

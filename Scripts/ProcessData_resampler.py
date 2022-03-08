@@ -21,7 +21,7 @@ def helper():
 
 def processArguments():
     try:
-        opts, args = getopt.getopt(sys.argv[1:], "d:uv", ["io_dir=", "update"])
+        opts, args = getopt.getopt(sys.argv[1:], "dp:uv", ["io_dir=", "port=", "update"])
     except getopt.GetoptError as err:
         # print help information and exit:
         print(str(err))  # will print something like "option -a not recognized"
@@ -34,7 +34,9 @@ def processArguments():
             sys.exit()
         elif opt in ("-d", "--io_dir"):
             config.io_dir = Path(arg)
-        elif opt in ("-o", "--update"):
+        elif opt in ("-p", "--port"):
+            config.port = int(arg)
+        elif opt in ("-u", "--update"):
             config.update = True
         else:
             assert False, "unhandled option"

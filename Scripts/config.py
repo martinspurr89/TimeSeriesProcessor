@@ -3,6 +3,7 @@ from datetime import datetime
 from pytz import utc
 
 io_dir = Path.home()
+port = 8050
 update = False
 verbose = False
 

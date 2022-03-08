@@ -240,7 +240,7 @@ def setAxisRange(plot_fig, plot, chart_data, traces_info):
 
     return(plot_fig)
 
-def create_chart_data(dates_selected, resample, plots, traces):
+def create_chart_data(dates_selected, resample, traces):
     chart_data = config.data['all_data'].query(
             'DateTime > "' + str(unixToDatetime(dates_selected[0])) + '"').query(
             'DateTime < "' + str(unixToDatetime(dates_selected[1])) + '"').set_index('DateTime')
@@ -272,8 +272,7 @@ def create_chart_content(chart_data, dates_selected, plots, traces, height, font
             config.fsc.set("submit_progress", str(progress_pc))  # update progress
     return content
 
-def open_browser():
-    port = 8050
+def open_browser(port):
     webbrowser.open_new("http://localhost:{}".format(port))
 
 def createOfflineCharts(content, plots, height, export_progress, export_denom):
