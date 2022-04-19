@@ -7,3 +7,6 @@ Info/~$Info.xlsx
 cache_dir/
 file_system_store/
 export_cache_dir/
+Scripts/__pycache__/
+Scripts/.ipynb_checkpoints/
+Scripts/Archive/
