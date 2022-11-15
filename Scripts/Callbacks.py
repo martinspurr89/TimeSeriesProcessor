@@ -270,8 +270,8 @@ def register_callbacks(app):
                 color="success",
                 className="d-flex align-items-center mb-0 py-0")
             
-            start = func.unixToDatetime(dates_selected[0]).strftime("%Y%M%d")
-            end = func.unixToDatetime(dates_selected[1]).strftime("%Y%M%d")
+            start = func.unixToDatetime(dates_selected[0]).strftime("%Y%m%d")
+            end = func.unixToDatetime(dates_selected[1]).strftime("%Y%m%d")
             export_name = start + "-" + end + "_"
             if resample > 0:
                 export_name += str(resample) + "Min_"

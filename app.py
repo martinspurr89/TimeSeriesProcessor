@@ -15,11 +15,11 @@ import Scripts.Functions as func
 import Scripts.Layout as Layout
 from Scripts.Callbacks  import register_callbacks
 
-def getConfigData():
-    dfile_path = config.io_dir / "Output" / 'all_data.pbz2'
+def getConfigData(data = 'all_data.pbz2'):
+    dfile_path = config.io_dir / "Output" / data
     pfile_path = config.io_dir / "Output" / 'sub_config2.pbz2'
     if os.path.exists(dfile_path) and os.path.exists(pfile_path) and config.update:
-        print("Importing processed data...")
+        print("Importing processed data from " + data + "...")
         with bz2.open(dfile_path, 'rb') as pfile:
             config.data['all_data'] = pickle.load(pfile)
         print("Importing config...")
@@ -31,7 +31,7 @@ def getConfigData():
             config.figs[key] = items[1][key]
     else:
         if config.update:
-            print("No processed all_data.pbz2 or sub_config2.pbz2 files exist")
+            print("No processed " + data + " or sub_config2.pbz2 files exist")
         CreateCharts.main()
         config.update = True
         getConfigData()
