@@ -10,3 +10,4 @@ export_cache_dir/
 Scripts/__pycache__/
 Scripts/.ipynb_checkpoints/
 Scripts/Archive/
+TimeSeriesProcessor.code-workspace

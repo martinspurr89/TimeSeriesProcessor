@@ -1,0 +1,33 @@
+{	
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"launch": {
+		"version": "0.2.0",
+		"python.pythonPath": "C:/Program Files/Python37/python.exe",
+		"python.condaPath": "C:/Anaconda3/Scripts/conda.exe",
+		"configurations": [
+
+			{
+				"name": "Get_all-PROJECT",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Program Files/Python37/python.exe",
+				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052"]
+			},
+            {
+				"name": "Update-PROJECT",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Program Files/Python37/python.exe",
+				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052", "--update"]
+			},
+		]
+	}
+}
