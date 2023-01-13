@@ -3,9 +3,8 @@ from dash import html
 from dash import dcc
 from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
-from dash_extensions.enrich import Output, Dash, Trigger, FileSystemCache
+from dash_extensions.enrich import Output, Trigger
 import pandas as pd
-import numpy as np
 import re
 import dash_bootstrap_components as dbc
 from copy import deepcopy

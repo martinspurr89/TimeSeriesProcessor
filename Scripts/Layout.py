@@ -1,9 +1,7 @@
 from dash import html
 from dash import dcc
-from pytz import timezone, utc
 import dash_datetimepicker
 import dash_bootstrap_components as dbc
-import base64
 
 import Scripts.config as config
 import Scripts.Functions as func
@@ -11,7 +9,7 @@ import Scripts.Functions as func
 def prepare_layout():
     components = {}
     
-    image_filename = 'assets\ToOL-PRO-BES.png'
+    image_filename = 'assets\header_image.png'
     plot_set = min(config.config['plot_sets'])
     charts = config.config['info']['charts']
     chart = min(charts.index)

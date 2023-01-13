@@ -3,8 +3,6 @@ import os
 from tqdm.autonotebook import tqdm
 import pandas as pd
 import numpy as np
-from datetime import datetime
-from pytz import timezone
 import bz2
 import pickle
 import plotly.graph_objects as go

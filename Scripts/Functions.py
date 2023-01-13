@@ -7,10 +7,10 @@ import re
 import webbrowser
 import dash_bootstrap_components as dbc
 from dash import html
-from pytz import timezone, utc
+from pytz import timezone
 import math
 import humanize
-from datetime import datetime, timedelta
+from datetime import datetime
 from copy import deepcopy
 import plotly
 from PIL import Image

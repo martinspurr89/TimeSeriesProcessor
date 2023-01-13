@@ -2,8 +2,8 @@ import os
 import pickle
 import bz2
 
-from pytz import timezone, utc
-from datetime import datetime, timedelta
+from pytz import timezone
+from datetime import datetime
 from threading import Timer
 import dash_bootstrap_components as dbc
 from dash_extensions.enrich import Output, Dash, Trigger, FileSystemCache
