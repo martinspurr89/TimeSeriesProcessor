@@ -42,14 +42,13 @@ For regular use or multiple instances, it is easier to run the scripts using VSC
 
 ## Example Project file structure
 
-<code>📦Example<br>
-┣ 📂Example_project<br>
-┃ ┣ 📂Scripts<br>
-┃ ┃ ┗ 📜CustomDataImports.py<br>
-┃ ┗ 📜Info2.xlsx<br>
-┣ 📂Example_Sample_data<br>
-┃ ┗ 📜Sample_log_data.csv<br>
-┗ 📂Example_TS_data<br>
+<code>📂Example_project<br>
+┣ 📂Scripts<br>
+┃ ┗ 📜CustomDataImports.py<br>
+┗ 📜Info2.xlsx<br>
+📂Example_Sample_data<br>
+┗ 📜Sample_log_data.csv<br>
+📂Example_TS_data<br>
 ┗ 📜Timeseries_data.cs<br></code>
 
 
