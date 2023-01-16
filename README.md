@@ -55,8 +55,7 @@ File ▶ Open Workspace from File ▶ Select the `TimeSeriesProcessor.code-works
 
 Within VS Code, open the `TimeSeriesProcessor.code-workspace` file from the `Explorer` left hand menu.
 
-<pre lang="python"><code>
-{	
+<pre><code>{	
 	"folders": [
 		{
 			"path": "."
@@ -64,32 +63,31 @@ Within VS Code, open the `TimeSeriesProcessor.code-workspace` file from the `Exp
 	],
 	"launch": {
 		"version": "0.2.0",
-		"python.pythonPath": "C:/Program Files/Python37/python.exe",
-		"python.condaPath": "C:/Anaconda3/Scripts/conda.exe",
+		"python.pythonPath": "<span style="color: #D62728;"><b>C:/Program Files/Python37/python.exe</b></span>",
+		"python.condaPath": "<span style="color: #FF7F0E;"><b>C:/Anaconda3/Scripts/conda.exe</b></span>",
 		"configurations": [
 
 			{
-				"name": "Get_all-PROJECT",
+				"name": "Get_all-<span style="color: #2CA02C;"><b>PROJECT</b></span>",
 				"type": "python",
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
-				"pythonPath": "C:/Program Files/Python37/python.exe",
-				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052"]
+				"pythonPath": "<span style="color: #D62728;"><b>C:/Program Files/Python37/python.exe</b></span>",
+				"args": ["--io_dir", "<span style="color: #1F77B4;"><b>C:/Users/username/PROJECTS/PROJECT</b></span>", "--port", "<span style="color: #9467BD;"><b>8052</b></span>"]
 			},
             {
-				"name": "Update-PROJECT",
+				"name": "Update-<span style="color: #2CA02C;"><b>PROJECT</b></span>",
 				"type": "python",
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
-				"pythonPath": "C:/Program Files/Python37/python.exe",
-				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052", "--update"]
+				"pythonPath": "<span style="color: #D62728;"><b>C:/Program Files/Python37/python.exe</b></span>",
+				"args": ["--io_dir", "<span style="color: #1F77B4;"><b>C:/Users/username/PROJECTS/PROJECT</b></span>", "--port", "<span style="color: #9467BD;"><b>8052</b></span>", "--update"]
 			},
 		]
 	}
-}
-</code></pre>
+}</code></pre>
 
 
 
