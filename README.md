@@ -20,21 +20,19 @@ Create a `TimeSeriesProcessor` folder to store the general scripts for processin
 
 Inside this folder download save the following files in this structure:
 
-<code>
-    📦TimeSeriesProcessor<br>
-    ┣ 📂assets<br>
-    ┃ ┗ 📜header_image.png<br>
-    ┣ 📂Scripts<br>
-    ┃ ┣ 📜Callbacks.py<br>
-    ┃ ┣ 📜config.py<br>
-    ┃ ┣ 📜CreateCharts.py<br>
-    ┃ ┣ 📜Functions.py<br>
-    ┃ ┣ 📜Layout.py<br>
-    ┃ ┗ 📜ProcessData_resampler.py<br>
-    ┣ 📜app.py<br>
-    ┣ 📜requirements.txt<br>
-    ┗ 📜TimeSeriesProcessor_example.code-workspace <i>[Optional]</i>
-</code>
+<code>📦TimeSeriesProcessor<br>
+┣ 📂assets<br>
+┃ ┗ 📜header_image.png<br>
+┣ 📂Scripts<br>
+┃ ┣ 📜Callbacks.py<br>
+┃ ┣ 📜config.py<br>
+┃ ┣ 📜CreateCharts.py<br>
+┃ ┣ 📜Functions.py<br>
+┃ ┣ 📜Layout.py<br>
+┃ ┗ 📜ProcessData_resampler.py<br>
+┣ 📜app.py<br>
+┣ 📜requirements.txt<br>
+┗ 📜TimeSeriesProcessor_example.code-workspace <i>[Optional]</i></code>
 
 ## Optional: VSCode setup
 
@@ -44,17 +42,15 @@ For regular use or multiple instances, it is easier to run the scripts using VSC
 
 ## Example Project file structure
 
-<code>
-📦Example<br>
- ┣ 📂Example_project<br>
- ┃ ┣ 📂Scripts<br>
- ┃ ┃ ┗ 📜CustomDataImports.py<br>
- ┃ ┗ 📜Info2.xlsx<br>
- ┣ 📂Example_Sample_data<br>
- ┃ ┗ 📜Sample_log_data.csv<br>
- ┗ 📂Example_TS_data<br>
-   ┗ 📜Timeseries_data.cs<br>
-</code>
+<code>📦Example<br>
+┣ 📂Example_project<br>
+┃ ┣ 📂Scripts<br>
+┃ ┃ ┗ 📜CustomDataImports.py<br>
+┃ ┗ 📜Info2.xlsx<br>
+┣ 📂Example_Sample_data<br>
+┃ ┗ 📜Sample_log_data.csv<br>
+┗ 📂Example_TS_data<br>
+┗ 📜Timeseries_data.cs<br></code>
 
 
 
