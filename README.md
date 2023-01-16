@@ -2,9 +2,9 @@
 
 This `TimeSeriesProcessor` set of scripts can be used to process time series data into standardised formatting with interactive chart plotting and options for csv, pdf, png and html export.
 
-## Setup
+# Setup
 
-### Installation and prerequisites
+## Installation and prerequisites
 
 Install Python v3 (this has been tested with v3.7.3).
 
@@ -14,15 +14,15 @@ Install the python modules listed in the `requirements.txt` file.
 
 - E.g. Open `Anaconda Prompt` ▶ Navigate to folder containing `requirements.txt` file `pip install --user -r requirements.txt`
 
-#### File structure
+### File structure
 
 Create a `TimeSeriesProcessor` folder to store the general scripts for processing.
 
 Inside this folder download save the following files in this structure:
 
 <code>
-  📦TimeSeriesProcessor<br>
-  ┣ 📂assets<br>
+    📦TimeSeriesProcessor<br>
+    ┣ 📂assets<br>
     ┃ ┗ 📜header_image.png<br>
     ┣ 📂Scripts<br>
     ┃ ┣ 📜Callbacks.py<br>
@@ -36,12 +36,25 @@ Inside this folder download save the following files in this structure:
     ┗ 📜TimeSeriesProcessor_example.code-workspace <i>[Optional]</i>
 </code>
 
-### Optional: VSCode setup
+## Optional: VSCode setup
 
 For regular use or multiple instances, it is easier to run the scripts using VSCode. Install this either from `Anaconda Navigator` or  https://code.visualstudio.com/download.
 
 
 
+## Example Project file structure
+
+<code>
+📦Example<br>
+ ┣ 📂Example_project<br>
+ ┃ ┣ 📂Scripts<br>
+ ┃ ┃ ┗ 📜CustomDataImports.py<br>
+ ┃ ┗ 📜Info2.xlsx<br>
+ ┣ 📂Example_Sample_data<br>
+ ┃ ┗ 📜Sample_log_data.csv<br>
+ ┗ 📂Example_TS_data<br>
+   ┗ 📜Timeseries_data.cs<br>
+</code>
 
 
 
