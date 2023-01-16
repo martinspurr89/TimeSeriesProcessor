@@ -10,30 +10,30 @@ Create a `TimeSeriesProcessor` folder to store the general scripts for processin
 
 Inside this folder download save the following files in this structure:
 
-<code>📦TimeSeriesProcessor<br>
-┣ 📂assets<br>
-┃ ┗ 📜header_image.png<br>
-┣ 📂Scripts<br>
-┃ ┣ 📜Callbacks.py<br>
-┃ ┣ 📜config.py<br>
-┃ ┣ 📜CreateCharts.py<br>
-┃ ┣ 📜Functions.py<br>
-┃ ┣ 📜Layout.py<br>
-┃ ┗ 📜ProcessData_resampler.py<br>
-┣ 📂<i>Example<br>
-┃ ┣ 📂Example_project<br>
-┃ ┃ ┣ 📂Scripts<br>
-┃ ┃ ┃ ┗ 📜CustomDataImports.py<br>
-┃ ┃ ┗ 📜Info2.xlsx<br>
-┃ ┣ 📂Example_Sample_data<br>
-┃ ┃ ┗ 📜Sample_log_data.csv<br>
-┃ ┗ 📂Example_TS_data<br>
-┃   ┗ 📜Timeseries_data.cs</i><br></code>
-┣ 📜app.py<br>
-┣ 📜<i>requirements.txt</i><br>
-┗ 📜<i>TimeSeriesProcessor_example.code-workspace</i><br>
+<pre><code>📦TimeSeriesProcessor
+┣ 📂assets
+┃ ┗ 📜header_image.png
+┣ 📂Scripts
+┃ ┣ 📜Callbacks.py
+┃ ┣ 📜config.py
+┃ ┣ 📜CreateCharts.py
+┃ ┣ 📜Functions.py
+┃ ┣ 📜Layout.py
+┃ ┗ 📜ProcessData_resampler.py
+┣ 📂<i>Example
+┃ ┣ 📂Example_project
+┃ ┃ ┣ 📂Scripts
+┃ ┃ ┃ ┗ 📜CustomDataImports.py
+┃ ┃ ┗ 📜Info2.xlsx
+┃ ┣ 📂Example_Sample_data
+┃ ┃ ┗ 📜Sample_log_data.csv
+┃ ┗ 📂Example_TS_data
+┃   ┗ 📜Timeseries_data.cs</i>
+┣ 📜app.py
+┣ 📜<i>requirements.txt</i>
+┗ 📜<i>TimeSeriesProcessor.code-workspace</i>
 
-<i>[Optional for normal of the running script]</i></code>
+<i>[Items in italics optional for normal running of the script]</i></code></pre>
 
 ## Software installation and prerequisites
 
@@ -46,9 +46,50 @@ Install the python modules listed in the `requirements.txt` file.
 - E.g. If using Anaconda, open `Anaconda Prompt` ▶ Navigate to the folder containing the `requirements.txt` file (using `cd` and `dir`) ▶ Install the required packages using pip: `pip install --user -r requirements.txt`
 
 
-## Optional: VSCode setup
+## Optional: VS Code setup
 
-For regular use or multiple instances, it is easier to run the scripts using VSCode. Install this either from `Anaconda Navigator` or  https://code.visualstudio.com/download.
+For regular use, troubleshooting or running multiple instances, it is easier to run the scripts using the VS Code editor. Install this either from `Anaconda Navigator` (if using Anaconda) or at https://code.visualstudio.com/download.
+
+Launch VS Code (from `Anaconda Navigator` if using Anaconda).
+File ▶ Open Workspace from File ▶ Select the `TimeSeriesProcessor.code-workspace` file.
+
+Within VS Code, open the `TimeSeriesProcessor.code-workspace` file from the `Explorer` left hand menu.
+
+<pre lang="python"><code>
+{	
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"launch": {
+		"version": "0.2.0",
+		"python.pythonPath": "C:/Program Files/Python37/python.exe",
+		"python.condaPath": "C:/Anaconda3/Scripts/conda.exe",
+		"configurations": [
+
+			{
+				"name": "Get_all-PROJECT",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Program Files/Python37/python.exe",
+				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052"]
+			},
+            {
+				"name": "Update-PROJECT",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"pythonPath": "C:/Program Files/Python37/python.exe",
+				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052", "--update"]
+			},
+		]
+	}
+}
+</code></pre>
 
 
 
