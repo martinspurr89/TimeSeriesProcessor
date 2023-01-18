@@ -53,7 +53,7 @@ preimport_functions = {'Test': get_Test_support_data}
 
 ### Custom Imported Data Functions - one per dataset ID with nomenclature "mod_imported_xxx_data" where "xxx" is the dataset ID
 
-def mod_imported_TimeSeries_data(df):
+def mod_imported_TimeSeries_data(dataset, folder, filename, pat):
     # Import files
     df = fileImport(dataset, folder, filename, pat)
     # Create combined DateTime column
@@ -94,14 +94,30 @@ def mod_imported_SampleLog_data(dataset, folder, filename, pat):
 
     # Widen DF
     df_wide = pd.pivot_table(df, values='Read_ave', index=['DateTime', 'Location'], columns=['Type', 'Vial'])
+
     # Fix col header and names
     df_wide.columns = map(''.join, (str(v) for v in df_wide.columns))
     df_wide.columns = [re.sub(r'\W', '', i) for i in df_wide.columns]
     df_wide.columns = [s[:len(s) - 1] + "_" + s[len(s) - 1:] for s in df_wide.columns]
-    df_wide = df_wide.reset_index()
+    
+    # Separate data into each sampling location
+    # Create location dataframe dictionary
+    loc_dfs = {}
+    # For each location
+    for loc in df_wide.index.get_level_values('Location').unique():
+        # Store dataframe
+        loc_dfs[loc] = df_wide.loc[df_wide.index.get_level_values('Location') == loc]
+        # Rename columns with location ID
+        loc_dfs[loc].columns = loc + "_" + loc_dfs[loc].columns
+
+    # Combine location dataframes into one dataframe
+    df_wide_locs = pd.concat(loc_dfs)
+    # Reset index and drop location column
+    df_wide_locs = df_wide_locs.reset_index()
+    df_wide_locs = df_wide_locs.drop(['level_0', 'Location'], axis=1)
 
     # Return dataframe to main script
-    return df_wide
+    return df_wide_locs
 
 import_functions = {'TimeSeries': mod_imported_TimeSeries_data,
                     'SampleLog': mod_imported_SampleLog_data}

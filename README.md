@@ -45,15 +45,50 @@ Install the python modules listed in the `requirements.txt` file.
 
 - E.g. If using Anaconda, open `Anaconda Prompt` ▶ Navigate to the folder containing the `requirements.txt` file (using `cd` and `dir`) ▶ Install the required packages using pip: `pip install --user -r requirements.txt`
 
+## Create a Project
+
+Each experiment to be processed should be assigned a new Project folder (note this can be in any location and does not need to be within the script folder). As with the `Example_project` below, each Project folder should contain the following files:
+
+<code>📂Example_project<br>
+┣ 📂Scripts<br>
+┃ ┗ 📜CustomDataImports.py<br>
+┗ 📜Info2.xlsx<br></code>
+
+The `Info2.xlsx` and `CustomDataImports.py` files should be adapted from the `Example_project` provided. See below for more details.
+
+Separately, data files to be imported should be stored within a folder - one folder per dataset type/source (in case different import settings are needed) - the path of these will also be supplied to the script.
+
+<code>📂Example_Sample_data<br>
+┗ 📜Sample_log_data.csv<br>
+
+📂Example_TS_data<br>
+┗ 📜Timeseries_data.cs<br></code>
+
+## Information File
+
+Each project has an information file (`Info2.xlsx`) with Excel worksheets detailing various input specifications.
+
+### The `setup` worksheet
+
+| id                  | value                    |
+| ------------------- | ------------------------ |
+| project             | Example Project Jan 2023 |
+| date_start_utc      | 01/01/2023 12:00:00      |
+| date_end_utc        | 21/01/2023 00:00:00      |
+| default_font_size   | 12                       |
+| default_html_height | 20                       |
 
 ## Optional: VS Code setup
 
-For regular use, troubleshooting or running multiple instances, it is easier to run the scripts using the VS Code editor. Install this either from `Anaconda Navigator` (if using Anaconda) or at https://code.visualstudio.com/download.
+It is easier to run the scripts using the VS Code editor for regular use, troubleshooting or running multiple instances. Install this either from `Anaconda Navigator` (if using Anaconda) or at https://code.visualstudio.com/download.
 
-Launch VS Code (from `Anaconda Navigator` if using Anaconda).
-File ▶ Open Workspace from File ▶ Select the `TimeSeriesProcessor.code-workspace` file.
+Launch VS Code (from inside `Anaconda Navigator` if using Anaconda).
 
-Within VS Code, open the `TimeSeriesProcessor.code-workspace` file from the `Explorer` left hand menu.
+Open the workspace file from: File ▶ Open Workspace from File ▶ Select `TimeSeriesProcessor_WS.code-workspace`.
+
+Within VS Code, open the `TimeSeriesProcessor_WS.code-workspace` file from the `Explorer` left hand menu.
+
+Modify the file so that the highlighted items below have the correct paths for the `pythonPath`, `condaPath` and for each project amend the `Name`, `io-dir` (directory folder for input/ouput to the script). The `port` value can also be changed - useful to have a different port for each project so multiple instances of the script can be run simultaneously.
 
 <pre><code>{	
 	"folders": [
@@ -63,50 +98,37 @@ Within VS Code, open the `TimeSeriesProcessor.code-workspace` file from the `Exp
 	],
 	"launch": {
 		"version": "0.2.0",
-		"python.pythonPath": "<span style="color: #D62728;"><b>C:/Program Files/Python37/python.exe</b></span>",
-		"python.condaPath": "<span style="color: #FF7F0E;"><b>C:/Anaconda3/Scripts/conda.exe</b></span>",
+		"python.pythonPath": "<b>C:/Users/username/Anaconda3/python.exe</b>"🔴,
+		"python.condaPath": "<b>C:/Users/username/Anaconda3/Scripts/conda.exe</b>"🟠,
 		"configurations": [
 
 			{
-				"name": "Get_all-<span style="color: #2CA02C;"><b>PROJECT</b></span>",
+				"name": "Get_all-Example",
 				"type": "python",
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
-				"pythonPath": "<span style="color: #D62728;"><b>C:/Program Files/Python37/python.exe</b></span>",
-				"args": ["--io_dir", "<span style="color: #1F77B4;"><b>C:/Users/username/PROJECTS/PROJECT</b></span>", "--port", "<span style="color: #9467BD;"><b>8052</b></span>"]
+				"args": ["--io_dir", "Example/Example_project", "--port", "8050"]
 			},
             {
-				"name": "Update-<span style="color: #2CA02C;"><b>PROJECT</b></span>",
+				"name": "Get_all-<b>PROJECT</b>"🟢,
 				"type": "python",
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
-				"pythonPath": "<span style="color: #D62728;"><b>C:/Program Files/Python37/python.exe</b></span>",
-				"args": ["--io_dir", "<span style="color: #1F77B4;"><b>C:/Users/username/PROJECTS/PROJECT</b></span>", "--port", "<span style="color: #9467BD;"><b>8052</b></span>", "--update"]
+				"args": ["--io_dir", "<b>C:/Users/username/PROJECTS/PROJECT</b>"🔵, "--port", "<b>8051</b>"🟣]
+			},
+            {
+				"name": "Update-<b>PROJECT</b>"🟢,
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"args": ["--io_dir", "<b>C:/Users/username/PROJECTS/PROJECT</b>"🔵, "--port", "<b>8051</b>"🟣, "--update"]
 			},
 		]
 	}
 }</code></pre>
-
-
-
-## Example Project
-
-Project structure
-
-<code>📂Example_project<br>
-┣ 📂Scripts<br>
-┃ ┗ 📜CustomDataImports.py<br>
-┗ 📜Info2.xlsx<br></code>
-
-Data files
-
-<code>📂Example_Sample_data<br>
-┗ 📜Sample_log_data.csv<br>
-
-📂Example_TS_data<br>
-┗ 📜Timeseries_data.cs<br></code>
 
 
 

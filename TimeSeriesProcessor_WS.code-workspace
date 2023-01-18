@@ -6,17 +6,24 @@
 	],
 	"launch": {
 		"version": "0.2.0",
-		"python.pythonPath": "C:/Program Files/Python37/python.exe",
-		"python.condaPath": "C:/Anaconda3/Scripts/conda.exe",
+		"python.pythonPath": "C:/Users/username/Anaconda3/python.exe",
+		"python.condaPath": "C:/Users/username/Anaconda3/Scripts/conda.exe",
 		"configurations": [
 
+			{
+				"name": "Get_all-Example",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"args": ["--io_dir", "Example/Example_project", "--port", "8050"]
+			},
 			{
 				"name": "Get_all-PROJECT",
 				"type": "python",
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
-				"pythonPath": "C:/Program Files/Python37/python.exe",
 				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052"]
 			},
             {
@@ -25,7 +32,6 @@
 				"request": "launch",
 				"program": "${file}",
 				"console": "integratedTerminal",
-				"pythonPath": "C:/Program Files/Python37/python.exe",
 				"args": ["--io_dir", "C:/Users/username/PROJECTS/PROJECT", "--port", "8052", "--update"]
 			},
 		]
