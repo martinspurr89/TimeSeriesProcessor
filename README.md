@@ -1,6 +1,22 @@
 # TimeSeriesProcessor
 
-This `TimeSeriesProcessor` set of scripts can be used to process time series data into standardised formatting with interactive chart plotting and options for csv, pdf, png and html export.
+This `TimeSeriesProcessor` set of scripts can be used to process time series data from multiple sources into a standardised formatting with interactive chart plotting and options for csv, pdf, png and html export.
+
+## Chart plotting from multiple datasets
+### Line plots
+![Line plots](docs/images/lines.png?raw=true "Line plots")
+Including support for average lines or point plots with ribbons displaying error bars
+### Average line with ribbon plots
+![Ribbon plots](docs/images/ribbon.png?raw=true "Ribbon plots")
+With ribbon showing error around average line.
+### Point (+ line) plots
+![Point+line plots](docs/images/points.png?raw=true "Point+line plots")
+### Horizontal bar plots
+![Horizontal bar plots](docs/images/horiz_bar.png?raw=true "Horizontal bar plots")
+To display binary ON/OFF status of a parameter.
+
+## Interactive chart control
+
 
 # Setup
 
@@ -45,7 +61,9 @@ Install the python modules listed in the `requirements.txt` file.
 
 - E.g. If using Anaconda, open `Anaconda Prompt` ▶ Navigate to the folder containing the `requirements.txt` file (using `cd` and `dir`) ▶ Install the required packages using pip: `pip install --user -r requirements.txt`
 
-## Create a Project
+# Create a Project
+
+## Project Folder
 
 Each experiment to be processed should be assigned a new Project folder (note this can be in any location and does not need to be within the script folder). As with the `Example_project` below, each Project folder should contain the following files:
 
@@ -56,67 +74,46 @@ Each experiment to be processed should be assigned a new Project folder (note th
 
 The `Info2.xlsx` and `CustomDataImports.py` files should be adapted from the `Example_project` provided. See below for more details.
 
-During script running an Output folder will be created in the project folder for all exported files and a `all_data_15Min.csv` file.
+During the script running an `Output` folder will be created in the project folder for all exported files and a file containing all data resampled to 15 minute intervals `all_data_15Min.csv` file.
 
-Separately, data files to be imported should be stored within a folder - one folder per dataset type/source (in case different import settings are needed) - the path of these will also be supplied to the script.
+## Data
+
+Data files to be imported by the script should also be stored within their own dataset folder - one folder per dataset type/source (in case different import settings are needed) - the path of these will also be supplied to the script.
+
+By default the script supports two dataset types with specific formatting:
+- `TimeSeries` data
+- `SampleLog` data
+ Further dataset formats can be included by modifying `CustomDataImports.py` as below.
+
+ ### TimeSeries data
+
+ Example time series data is stored in the Example folder.
+
+<pre><code>📦Example_TS_data
+ ┣ 📜Timeseries_data_01_01_2023.csv
+ ┣ 📜Timeseries_data_02_01_2023.csv
+ ┣ 📜Timeseries_data_03_01_2023.csv
+ ...</code></pre>
+
+ To use the default import settings, all `TimeSeries` format data should be modified to the format:
+
+ | Date       | Time     | parameter_code_1 | parameter_code_2 | ... |
+| ---------- | -------- | ----------------- | -----------------  | ----------------- |
+| dd/mm/yyyy | hh:mm:ss | #         | #         | ...          |
+
+With the columns:
+- `Date`: in dd/mm/yyyy format
+- `Time`: in hh:mm:ss format
+- Additional columns for each parameter with a header name `code` to be provided in the Information file (see below).
+	- Parameter columns should data in either:
+		- numeric data for line/point/ribbon plotting
+		- binary 0/1 for horizontal bar plotting.
+
 
 <pre><code>📂Example_Sample_data
-┗ 📜Sample_log_data.csv
+┗ 📜Sample_log_data.csv</code></pre>
 
-📂Example_TS_data
-┗ 📜Timeseries_data.csv</code></pre>
 
-## Optional: VS Code setup
-
-It is easier to run the scripts using the VS Code editor for regular use, troubleshooting or running multiple instances. Install this either from `Anaconda Navigator` (if using Anaconda) or at https://code.visualstudio.com/download.
-
-Launch VS Code (from inside `Anaconda Navigator` if using Anaconda).
-
-Open the workspace file from: File ▶ Open Workspace from File ▶ Select `TimeSeriesProcessor_WS.code-workspace`.
-
-Within VS Code, open the `TimeSeriesProcessor_WS.code-workspace` file from the `Explorer` left hand menu.
-
-Modify the file so that the highlighted items below have the correct paths for the `pythonPath`, `condaPath` and for each project amend the `Name`, `io-dir` (directory folder for input/ouput to the script). The `port` value can also be changed - useful to have a different port for each project so multiple instances of the script can be run simultaneously.
-
-<pre><code>{	
-	"folders": [
-		{
-			"path": "."
-		}
-	],
-	"launch": {
-		"version": "0.2.0",
-		"python.pythonPath": "<b>C:/Users/username/Anaconda3/python.exe</b>"🔴,
-		"python.condaPath": "<b>C:/Users/username/Anaconda3/Scripts/conda.exe</b>"🟠,
-		"configurations": [
-
-			{
-				"name": "Get_all-Example",
-				"type": "python",
-				"request": "launch",
-				"program": "${file}",
-				"console": "integratedTerminal",
-				"args": ["--io_dir", "Example/Example_project", "--port", "8050"]
-			},
-            {
-				"name": "Get_all-<b>PROJECT</b>"🟢,
-				"type": "python",
-				"request": "launch",
-				"program": "${file}",
-				"console": "integratedTerminal",
-				"args": ["--io_dir", "<b>C:/Users/username/PROJECTS/PROJECT</b>"🔵, "--port", "<b>8051</b>"🟣]
-			},
-            {
-				"name": "Update-<b>PROJECT</b>"🟢,
-				"type": "python",
-				"request": "launch",
-				"program": "${file}",
-				"console": "integratedTerminal",
-				"args": ["--io_dir", "<b>C:/Users/username/PROJECTS/PROJECT</b>"🔵, "--port", "<b>8051</b>"🟣, "--update"]
-			},
-		]
-	}
-}</code></pre>
 
 # Define a Project
 
@@ -282,7 +279,57 @@ Page sizes to be used in default exports can be defined here.
 |...|
 
 
+## Optional: VS Code setup
 
+It is easier to run the scripts using the VS Code editor for regular use, troubleshooting or running multiple instances. Install this either from `Anaconda Navigator` (if using Anaconda) or at https://code.visualstudio.com/download.
+
+Launch VS Code (from inside `Anaconda Navigator` if using Anaconda).
+
+Open the workspace file from: File ▶ Open Workspace from File ▶ Select `TimeSeriesProcessor_WS.code-workspace`.
+
+Within VS Code, open the `TimeSeriesProcessor_WS.code-workspace` file from the `Explorer` left hand menu.
+
+Modify the file so that the highlighted items below have the correct paths for the `pythonPath`, `condaPath` and for each project amend the `Name`, `io-dir` (directory folder for input/ouput to the script). The `port` value can also be changed - useful to have a different port for each project so multiple instances of the script can be run simultaneously.
+
+<pre><code>{	
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"launch": {
+		"version": "0.2.0",
+		"python.pythonPath": "<b>C:/Users/username/Anaconda3/python.exe</b>"🔴,
+		"python.condaPath": "<b>C:/Users/username/Anaconda3/Scripts/conda.exe</b>"🟠,
+		"configurations": [
+
+			{
+				"name": "Get_all-Example",
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"args": ["--io_dir", "Example/Example_project", "--port", "8050"]
+			},
+            {
+				"name": "Get_all-<b>PROJECT</b>"🟢,
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"args": ["--io_dir", "<b>C:/Users/username/PROJECTS/PROJECT</b>"🔵, "--port", "<b>8051</b>"🟣]
+			},
+            {
+				"name": "Update-<b>PROJECT</b>"🟢,
+				"type": "python",
+				"request": "launch",
+				"program": "${file}",
+				"console": "integratedTerminal",
+				"args": ["--io_dir", "<b>C:/Users/username/PROJECTS/PROJECT</b>"🔵, "--port", "<b>8051</b>"🟣, "--update"]
+			},
+		]
+	}
+}</code></pre>
 
 
 

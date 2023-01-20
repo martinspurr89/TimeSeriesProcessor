@@ -256,6 +256,7 @@ def create_chart_data(dates_selected, resample, traces):
     chart_data = chart_data[trace_codes]
     if resample > 0:
         chart_data = chart_data.groupby(pd.Grouper(freq=str(resample) +'Min')).aggregate(np.mean)
+        chart_data = chart_data.dropna(thresh=1)
     chart_data = chart_data.reset_index()
     return chart_data
 
