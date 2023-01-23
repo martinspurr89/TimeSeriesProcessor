@@ -3,30 +3,42 @@
 This `TimeSeriesProcessor` set of scripts can be used to process time series data from multiple sources into a standardised formatting with interactive chart plotting and options for csv, pdf, png and html export.
 
 ## Chart plotting from multiple datasets
-### Line plots
+Available chart types:
+- Line plots
 ![Line plots](docs/images/lines.png?raw=true "Line plots")
-### Average line with ribbon plots
+- Average line with ribbon plots
 ![Ribbon plots](docs/images/ribbon.png?raw=true "Ribbon plots")
 With ribbon showing error around average line.
-### Point (+ line) plots
+- Point (+ line) plots
 ![Point+line plots](docs/images/points.png?raw=true "Point+line plots")
 With support for error bars around average points.
-### Horizontal bar plots
+- Horizontal bar plots
 ![Horizontal bar plots](docs/images/horiz_bar.png?raw=true "Horizontal bar plots")
 To display binary ON/OFF status of a parameter.
 
 ## Interactive chart control
-### DateTime Timeframe selection
-#### Chart Range selector
-<img src="docs/images/DT_selector.png?raw=true" alt="DateTime selector" width="200">
+- DateTime Timeframe selection
+	- Chart Range selector
+		<img src="docs/images/DT_selector.png?raw=true" alt="DateTime selector" width="200">
 
-Select pre-defined timeframes from Information file (see below).
-#### Slider
-![DateTime slider](docs/images/slider.png?raw=true "DateTime slider")
-Drag handles to adjust timeframe between data extents.
-#### Absolute DateTime input
-![DateTime input](docs/images/DT_input.png?raw=true "DateTime input")
-Click on start and end Date and Time to select absolute values.
+		Select pre-defined timeframes from Information file (see below).
+	- Slider
+		![DateTime slider](docs/images/slider.png?raw=true "DateTime slider")
+		Drag handles to adjust timeframe between data extents.
+	- Absolute DateTime input
+		![DateTime input](docs/images/DT_input.png?raw=true "DateTime input")
+		Click on start and end Date and Time to select absolute values.
+- Plot selection
+	- Pre-set plot selector
+		<img src="docs/images/plot-set_select.png?raw=true" alt="Plot selector" width="150">
+		Select pre-defined plot sets from Information file (see below).
+	- Custom plot and trace selector
+		<img src="docs/images/plot_select.png?raw=true" alt="Plot selector">
+		Select plots and traces to be displayed.
+- Time series resampling
+	<img src="docs/images/resample.png?raw=true" alt="Resample" width="70%">
+
+
 #### 
 
 
