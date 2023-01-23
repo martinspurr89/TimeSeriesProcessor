@@ -5,17 +5,29 @@ This `TimeSeriesProcessor` set of scripts can be used to process time series dat
 ## Chart plotting from multiple datasets
 ### Line plots
 ![Line plots](docs/images/lines.png?raw=true "Line plots")
-Including support for average lines or point plots with ribbons displaying error bars
 ### Average line with ribbon plots
 ![Ribbon plots](docs/images/ribbon.png?raw=true "Ribbon plots")
 With ribbon showing error around average line.
 ### Point (+ line) plots
 ![Point+line plots](docs/images/points.png?raw=true "Point+line plots")
+With support for error bars around average points.
 ### Horizontal bar plots
 ![Horizontal bar plots](docs/images/horiz_bar.png?raw=true "Horizontal bar plots")
 To display binary ON/OFF status of a parameter.
 
 ## Interactive chart control
+### DateTime Timeframe selection
+#### Chart Range selector
+<img src="docs/images/DT_selector.png?raw=true" alt="DateTime selector" width="200">
+
+Select pre-defined timeframes from Information file (see below).
+#### Slider
+![DateTime slider](docs/images/slider.png?raw=true "DateTime slider")
+Drag handles to adjust timeframe between data extents.
+#### Absolute DateTime input
+![DateTime input](docs/images/DT_input.png?raw=true "DateTime input")
+Click on start and end Date and Time to select absolute values.
+#### 
 
 
 # Setup
