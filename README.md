@@ -2,7 +2,8 @@
 
 This `TimeSeriesProcessor` set of scripts can be used to process time series data from multiple sources into a standardised formatting with interactive chart plotting and options for csv, pdf, png and html export.
 
-## Chart plotting from multiple datasets
+## Interactive chart plotting & export
+### Chart plotting from multiple datasets
 Available chart types:
 - Line plots
 ![Line plots](docs/images/lines.png?raw=true "Line plots")
@@ -16,8 +17,8 @@ With support for error bars around average points.
 ![Horizontal bar plots](docs/images/horiz_bar.png?raw=true "Horizontal bar plots")
 To display binary ON/OFF status of a parameter.
 
-## Interactive chart control
-### DateTime Timeframe selection
+### Interactive chart control
+#### DateTime Timeframe selection
 - Chart Range selector
 
 	<img src="docs/images/DT_selector.png?raw=true" alt="DateTime selector" width="300">
@@ -35,7 +36,7 @@ To display binary ON/OFF status of a parameter.
 
 	- Click on start and end Date and Time to select absolute values.
 
-### Plot selection
+#### Plot selection
 - Pre-set plot selector
 
 	<img src="docs/images/plot-set_select.png?raw=true" alt="Plot selector" width="150">
@@ -48,28 +49,28 @@ To display binary ON/OFF status of a parameter.
 
 	- Select plots and traces to be displayed.
 
-### Time series resampling
+#### Time series resampling
 
 <img src="docs/images/resample.png?raw=true" alt="Resample" width="350">
 
 - Resampling selector
 
 	- Creates a time-resampled subset of the data (average within each resampling period) for rapid plotting or downstream analysis.
-	- Assumes data is recorded no more frequent than 1 record per minute.
+	- Assumes time series data is recorded no more frequent than 1 record per minute.
 	- Select from:
 		- Low (up to 700 records per series)
 		- High (up to 2800 records per series)
 		- None (no resampling - returns and plots raw data)
 		- Set (enables input of defined resampling factor in minutes)
 
-### Plot display settings
+#### Plot display settings
 
 <img src="docs/images/display.png?raw=true" alt="Display settings" width="200">
 
 - Plot height: Set % vertical height a plot takes up, so with 20% 5 plots are shown per 100% screen height.
 - Font size: for displayed plots.
 
-### Export options
+#### Export options
 
 <img src="docs/images/export.png?raw=true" alt="Export" width="400">
 
@@ -79,19 +80,12 @@ To display binary ON/OFF status of a parameter.
 - PDF: A pdf file at the set width (w) and height (h) is created of the displayed plots at the set resampling resolution.
 - PNG: A png file at the set width (w), height (h) and image resolution (dpi) is created of the displayed plots at the set resampling resolution.
 
-### Plot loading
+#### Plot loading
 
 <img src="docs/images/submit.png?raw=true" alt="Submit" width="300">
 
-- Submit: Displays selected plots/traces at the set resampling resolution in an interactive plotly chart below.
+- Submit: Displays selected plots/traces below the controls in an interactive plotly chart at the set resampling resolution.
 - Export: Exports the selected outputs to the Output folder.
-
-
-
-
-
-#### 
-
 
 # Setup
 
@@ -170,7 +164,7 @@ By default the script supports two dataset types with specific formatting:
  ┣ 📜Timeseries_data_03_01_2023.csv
  ...</code></pre>
 
- To use the default import settings, all `TimeSeries` format data should be modified to the format:
+ To use the default import settings, all `TimeSeries` data should be modified to the format:
 
  | Date       | Time     | parameter_code_1 | parameter_code_2 | ... |
 | ---------- | -------- | ----------------- | -----------------  | ----------------- |
@@ -184,11 +178,45 @@ With the columns:
 		- numeric data for line/point/ribbon plotting
 		- binary 0/1 for horizontal bar plotting.
 
+### SampleLog data
+
+ Example sample log data is stored in the Example folder.
 
 <pre><code>📂Example_Sample_data
 ┗ 📜Sample_log_data.csv</code></pre>
 
+ To use the default import settings, all `SampleLog` data should be modified to the format:
 
+ | DateTime         | Type  | Vial | R1 | R2  | R3  | Location |
+| ---------------- | ----- | ---- | -- | --- | --- | -------- |
+| dd/mm/yyyy hh:mm | parameter  | 1    | #  | [#] | [#] | A        |
+| dd/mm/yyyy hh:mm | parameter  | 2    | #  | [#] | [#] | A        |
+| dd/mm/yyyy hh:mm | parameter  | 1    | #  | [#] | [#] | B        |
+| dd/mm/yyyy hh:mm | parameter  | 2    | #  | [#] | [#] | B        |
+| dd/mm/yyyy hh:mm | parameter  | 1    | #  | [#] | [#] | C        |
+| dd/mm/yyyy hh:mm | parameter  | 2    | #  | [#] | [#] | C        |
+|...|
+
+This format is flexible to allow unlimited number of parameters (analyses) and replicate measurements. Each row represents an analysis test.
+- Within each row the following data fields:
+- `DateTime`: When sample was taken. Enter in required format. N.B. by default times should be entered in 'Europe/London' (GMT/BST) timezone and this will be converted to UTC by the script later.
+	- Default import can be modified by altering `CustomDataImports.py` file as below.
+- `Type`: Enter a parameter name which will be converted to a parameter_code for use in the Information file.
+- `Vial`: To allow for replicate measurements of the same sample, enter an integer incrementing from 1 per replicate (e.g. 3 rows with vial 1, 2 and 3 for triplicate measurements).
+- `R1`: Read value. Enter numeric data for the analysis result in units to be plotted.
+- `R2`, `R3`: Optional. Additional read values where multiple readings of the same analysis vial may have been taken (E.g. for inconsistent measuring devices). Enter numeric data which will be averaged across `R1`, `R2` and `R3`.
+- `Location`: Sampling location (E.g. reactor ID or treatment reference) to form part of parameter_code generated.
+	
+Parameter codes will be generated for unique DateTime values in the format: `Location`\_`Type`\_`Vial`. These `parameter codes` should be referenced in the Information file.
+
+Behind the scenes a wide-format data table will be automatically generated from this data in the format:
+
+| DateTime         | A_parameter_1 | A_parameter_2 | B_parameter_1 | B_parameter_2 | C_parameter_1 | C_parameter_2 |
+| ---------------- | ------------- | ------------- | ------------- | ------------- | ------------- | ------------- |
+| dd/mm/yyyy hh:mm | #             | #             | #             | #             | #             | #             |
+|...|
+
+This table format is accessible from the `all_data...` and `CSV` export options.
 
 # Define a Project
 
@@ -216,10 +244,10 @@ On this sheet enter project details:
 ### The `datasets` worksheet
 
 On this sheet enter details of each dataset folder to be imported.
-- `dataset`: ID of dataset
+- `dataset`: ID of dataset. With default settings this must be `TimeSeries` or `SampleLog`.
 - `folder`: default `1` (increment for each additional folder containing data of the same dataset type). E.g. if there are multiple folders (2023, 2022, etc) containing data for several years these would need their own rows.
-- `data_folder_path`: Enter the full path to folders containing dataset data files.
-- `supp_data_filepath`: Optional path to a file containing supporting data for datasets which need this imported first rather than with every data file. E.g. File may contain a parameter dictionary or data file timestamp information.
+- `data_folder_path`: Enter the full path to folders containing dataset data files. Must use `/` slashes.
+- `supp_data_filepath`: Optional - leave blank if unused. Path to a file containing supporting data for datasets which need this imported first rather than with every data file. E.g. File may contain a parameter dictionary or data file timestamp information.
 - `file_pat`: Enter the file pattern suffix to identify the data files.
 - `skiprows`: default `0` (alter if first X rows from each data file are to be ignored).
 
@@ -353,8 +381,41 @@ Page sizes to be used in default exports can be defined here.
 | 2     | png  | A4        | 794   | 1123   | 300     |
 |...|
 
+# Running the script
+
+## From the command line
+
+### Get all data
+
+To run the scripts using the command line (or Anaconda Prompt if using Anaconda), navigate to the scripts folder containing `app.py`.
+
+To collect all data from the datasets described in the Information file use:
+
+``` python
+python app.py --io_dir "path/to/project_folder" --port "8051"
+```
+
+Provide the following arguments after the `app.py` name:
+- `--io_dir`: The path to the project folder containing `Info2.xlsx`.
+- `--port`: Enter a port to use (E.g. starting from 8051). Using different ports for different projects allows the script and interactive charting to be run simultaneously.
+
+This will import the data and launch the interactive charting webpage.
+
+Outputs from the processing will be stored in the Output folder created within the project folder.
+
+### Update mode
+
+To use a previous output of the script for interactive charting and prevent reimporting the data again add the `--update` argument.
+
+``` python
+python app.py --io_dir "path/to/project_folder" --port "8051" --update
+```
+
+This is a much faster way to access interactive charting if no update to the data is needed. It requires the files created within the Output folder within the project folder.
 
 ## Optional: VS Code setup
+
+### Setup VS Code
 
 It is easier to run the scripts using the VS Code editor for regular use, troubleshooting or running multiple instances. Install this either from `Anaconda Navigator` (if using Anaconda) or at https://code.visualstudio.com/download.
 
@@ -365,6 +426,8 @@ Open the workspace file from: File ▶ Open Workspace from File ▶ Select `Time
 Within VS Code, open the `TimeSeriesProcessor_WS.code-workspace` file from the `Explorer` left hand menu.
 
 Modify the file so that the highlighted items below have the correct paths for the `pythonPath`, `condaPath` and for each project amend the `Name`, `io-dir` (directory folder for input/ouput to the script). The `port` value can also be changed - useful to have a different port for each project so multiple instances of the script can be run simultaneously.
+
+This can be used to provide a `Get_all` and `Update` script for each project.
 
 <pre><code>{	
 	"folders": [
@@ -405,6 +468,17 @@ Modify the file so that the highlighted items below have the correct paths for t
 		]
 	}
 }</code></pre>
+
+### Run with VS Code
+
+To run the scripts using VS Code, open the `app.py` file.
+
+<img src="docs/images/vscode.png?raw=true" alt="Export" width="500">
+
+Then select the `Run and Debug` menu from the left hand pane. Select the required run parameters from the dropdown list (e.g. `Get_all-Example`). Press the green `play` button to run the script.
+
+The script running can be monitored from the Terminal window within VS Code.
+
 
 
 
