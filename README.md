@@ -399,7 +399,7 @@ Provide the following arguments after the `app.py` name:
 - `--io_dir`: The path to the project folder containing `Info2.xlsx`.
 - `--port`: Enter a port to use (E.g. starting from 8051). Using different ports for different projects allows the script and interactive charting to be run simultaneously.
 
-This will import the data and launch the interactive charting webpage.
+This will import the data and launch the interactive charting webpage. Please note that for large datasets the script can take considerable time to run through all the processes (E.g. 45 minutes for a 2 year × 1 minute dataset).
 
 Outputs from the processing will be stored in the Output folder created within the project folder.
 
