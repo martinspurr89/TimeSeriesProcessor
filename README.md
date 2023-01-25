@@ -477,6 +477,8 @@ To run the scripts using VS Code, open the `app.py` file.
 
 Then select the `Run and Debug` menu from the left hand pane. Select the required run parameters from the dropdown list (e.g. `Get_all-Example`). Press the green `play` button to run the script.
 
+To run without debugging enabled (faster but won't catch errors) use Run -> `Run Without Debugging` with the required run parameters selected from the dropdown.
+
 The script running can be monitored from the Terminal window within VS Code.
 
 
