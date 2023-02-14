@@ -409,7 +409,7 @@ def combinePDF(pdf_dir, export_name, export_progress, export_denom):
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore', r'.*Multiple definitions in dictionary.*')
         merger = PdfFileMerger(strict=False)
-        for filename in os.listdir(pdf_dir):
+        for filename in sorted(os.listdir(pdf_dir)):
             merger.append(PdfFileReader(str(pdf_dir / filename), strict=False))
         with open(str(pdf_dir / "all_pages.pdf"), 'wb') as fh:
             merger.write(fh)

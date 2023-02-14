@@ -128,7 +128,7 @@ Install Python v3 (this has been tested with v3.7.3).
 
 Install the python modules listed in the `requirements.txt` file.
 
-- E.g. If using Anaconda, open `Anaconda Prompt` ▶ Navigate to the folder containing the `requirements.txt` file (using `cd` and `dir`) ▶ Install the required packages using pip: `pip install --user -r requirements.txt`
+- E.g. If using Anaconda, open `Anaconda Prompt` ▶ Navigate to the folder containing the `requirements.txt` file (using `cd` and `dir`) ▶ Install the required packages using pip: E.g. `python -m pip install --user -r requirements.txt`
 
 # Create a Project
 
@@ -468,6 +468,8 @@ This can be used to provide a `Get_all` and `Update` script for each project.
 		]
 	}
 }</code></pre>
+
+From the Extensions menu on the left pane, search for and install `Python` extension. This will enable the debugging options for using the above arguments.
 
 ### Run with VS Code
 
